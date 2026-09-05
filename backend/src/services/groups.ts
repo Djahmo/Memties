@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
-import { groupMembers, groups } from '../db/schema.js'
+import { entries, groupMembers, groups, personGroups } from '../db/schema.js'
 import { ServiceError } from './errors.js'
 import { loadAccess } from './access.js'
 
@@ -26,6 +26,55 @@ export const createGroupService = (db: Database) => {
 
   return {
     list,
+    move: async (userId: string, id: string, parentId: string | null) => {
+      await db.transaction(async tx => {
+        // Serialize structural changes before checking ancestry and inherited access.
+        const nodes = await tx.select().from(groups).orderBy(groups.id).for('update')
+        const access = await loadAccess(tx, userId)
+        const node = nodes.find(item => item.id === id)
+        const permission = access.permissions.get(id)
+        if (!node || !permission) throw new ServiceError(404, 'Group not found.')
+        if (permission.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
+        if (node.personalOwnerId) throw new ServiceError(403, 'The Personal vault is protected.')
+        if (parentId === node.parentId) return
+        const destination = parentId ? access.permissions.get(parentId) : undefined
+        if (parentId && !destination) throw new ServiceError(404, 'Group not found.')
+        if (destination && destination.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
+        if (permission.isPrivate !== (destination?.isPrivate ?? false)) {
+          throw new ServiceError(403, 'Groups cannot cross the Personal vault boundary.')
+        }
+        const visited = new Set<string>([id])
+        let ancestor = parentId
+        while (ancestor) {
+          if (visited.has(ancestor)) throw new ServiceError(400, 'A group cannot be moved into itself or its descendants.')
+          visited.add(ancestor)
+          ancestor = nodes.find(item => item.id === ancestor)?.parentId ?? null
+        }
+        await tx.update(groups).set({ parentId }).where(eq(groups.id, id))
+        // A detached root needs an explicit owner after inherited access disappears.
+        if (!parentId) await tx.insert(groupMembers).values({ groupId: id, userId, role: 'owner' })
+          .onDuplicateKeyUpdate({ set: { role: 'owner' } })
+      })
+      return { success: true }
+    },
+    remove: async (userId: string, id: string) => {
+      await db.transaction(async tx => {
+        const nodes = await tx.select().from(groups).orderBy(groups.id).for('update')
+        const access = await loadAccess(tx, userId)
+        const node = nodes.find(item => item.id === id)
+        const permission = access.permissions.get(id)
+        if (!node || !permission) throw new ServiceError(404, 'Group not found.')
+        if (permission.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
+        if (node.personalOwnerId) throw new ServiceError(403, 'The Personal vault is protected.')
+        const contacts = await tx.select({ id: personGroups.personId }).from(personGroups).where(eq(personGroups.groupId, id)).limit(1).for('update')
+        const history = await tx.select({ id: entries.id }).from(entries).where(eq(entries.groupId, id)).limit(1).for('update')
+        if (nodes.some(item => item.parentId === id) || contacts.length || history.length) {
+          throw new ServiceError(409, 'Only empty groups can be deleted.')
+        }
+        await tx.delete(groups).where(eq(groups.id, id))
+      })
+      return { success: true }
+    },
     create: async (userId: string, input: { name: string; description: string; parentId: string | null }) => {
       if (input.parentId) await requireOwner(userId, input.parentId)
       const id = randomUUID()

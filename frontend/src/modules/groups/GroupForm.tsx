@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { GroupActions } from './GroupActions'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Group } from '../../types/api'
@@ -28,5 +29,6 @@ export const GroupForm = ({ parent, existing, onSaved, onCancel }: { parent: Gro
       {error && <p role="alert" className="error">{t(error)}</p>}
       <div className="flex gap-3"><button className="primary" type="submit">{busy ? t("Saving…") : existing ? t("Save changes") : t("Create group")}</button><button type="button" className="secondary" onClick={onCancel}>{t("Cancel")}</button></div>
     </fieldset></form>
-  </section>
+      {existing && <GroupActions key={existing.id} group={existing} />}
+    </section>
 }
