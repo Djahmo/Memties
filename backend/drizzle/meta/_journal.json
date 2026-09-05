@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788615468226,
+      "tag": "0000_wakeful_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1788617802406,
+      "tag": "0001_last_wiccan",
+      "breakpoints": true
+    }
+  ]
+}
