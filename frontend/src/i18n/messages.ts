@@ -1,4 +1,9 @@
 export const fr = {
+  'Use a custom display name': 'Personnaliser le nom affiché',
+  'The full name must not exceed 240 characters.': 'Le nom complet ne doit pas dépasser 240 caractères.',
+  'Additional contact details': 'Informations complémentaires',
+  'Choose a group': 'Choisir un groupe',
+  'Change': 'Changer',
   'Reminders': 'Rappels',
   'Reminder status': 'Statut du rappel',
   'Pending': 'À faire',
