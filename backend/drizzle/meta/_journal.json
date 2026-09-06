@@ -15,6 +15,13 @@
       "when": 1788617802406,
       "tag": "0001_last_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788658293625,
+      "tag": "0002_first_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

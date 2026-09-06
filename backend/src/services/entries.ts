@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, exists, gte, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
-import { entries, entryPeople, people, users } from '../db/schema.js'
-import { groupScope, loadAccess, requireGroup } from './access.js'
+import { entries, entryPeople, people, reminders, users } from '../db/schema.js'
+import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
 import { requirePerson, visiblePersonIds } from './people.js'
 import { ServiceError } from './errors.js'
@@ -24,16 +24,16 @@ export const createEntryService = (db: Database) => {
       canEdit: access.permissions.get(entry.groupId)?.role !== 'viewer',
     }))
   }
-  const requireEntry = async (access: Access, id: string) => {
+  const requireEntry = async (access: Access, id: string, store: Pick<Database, 'select'> = db) => {
     const ids = [...access.permissions.keys()]
     if (!ids.length) throw new ServiceError(404, 'Entry not found.')
-    const [entry] = await db.select().from(entries).where(and(eq(entries.id, id), inArray(entries.groupId, ids))).limit(1)
+    const [entry] = await store.select().from(entries).where(and(eq(entries.id, id), inArray(entries.groupId, ids))).limit(1)
     if (!entry) throw new ServiceError(404, 'Entry not found.')
     return entry
   }
-  const validatePeople = async (access: Access, ids: string[]) => {
+  const validatePeople = async (access: Access, ids: string[], store: Pick<Database, 'select'> = db) => {
     if (!ids.length) return
-    const visible = await db.select({ id: people.id }).from(people).where(and(inArray(people.id, ids), inArray(people.id, visiblePersonIds(db, access))))
+    const visible = await store.select({ id: people.id }).from(people).where(and(inArray(people.id, ids), inArray(people.id, visiblePersonIds(store, access))))
     if (visible.length !== new Set(ids).size) throw new ServiceError(404, 'One or more people are unavailable.')
   }
   const get = async (userId: string, id: string) => {
@@ -62,26 +62,36 @@ export const createEntryService = (db: Database) => {
       const access = await loadAccess(db, userId)
       requireGroup(access, input.groupId, true)
       await validatePeople(access, input.personIds)
-      const { personIds, ...fields } = input
+      const { personIds, reminder, ...fields } = input
       const id = randomUUID()
       await db.transaction(async tx => {
+        const current = await lockAccess(tx, userId)
+        requireGroup(current, input.groupId, true)
+        await validatePeople(current, personIds, tx)
         await tx.insert(entries).values({ id, ...fields, creatorId: userId, source })
         if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
+        if (reminder) await tx.insert(reminders).values({ id: randomUUID(), entryId: id, creatorId: userId, ...reminder, notifyByEmail: reminder.notifyByEmail ? 'yes' : 'no' })
       })
       return get(userId, id)
     },
     update: async (userId: string, id: string, input: EntryInput) => {
+      if (input.reminder) throw new ServiceError(400, 'Add reminders from the entry history.')
       const access = await loadAccess(db, userId)
       const previous = await requireEntry(access, id)
       requireGroup(access, previous.groupId, true)
       requireGroup(access, input.groupId, true)
       await validatePeople(access, input.personIds)
-      const { personIds, ...fields } = input
+      const { personIds, reminder: _reminder, ...fields } = input
       await db.transaction(async tx => {
+        const current = await lockAccess(tx, userId)
+        const locked = await requireEntry(current, id, tx)
+        requireGroup(current, locked.groupId, true)
+        requireGroup(current, input.groupId, true)
+        await validatePeople(current, personIds, tx)
         const [result] = await tx.update(entries).set({ ...fields, updatedAt: new Date() }).where(and(eq(entries.id, id), eq(entries.groupId, previous.groupId)))
         if (!result.affectedRows) throw new ServiceError(409, 'This entry was moved. Reload it before editing.')
         // Editing a visible entry must not remove or reveal participants inaccessible to this reader.
-        await tx.delete(entryPeople).where(and(eq(entryPeople.entryId, id), inArray(entryPeople.personId, visiblePersonIds(db, access))))
+        await tx.delete(entryPeople).where(and(eq(entryPeople.entryId, id), inArray(entryPeople.personId, visiblePersonIds(tx, current))))
         if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
       })
       return get(userId, id)

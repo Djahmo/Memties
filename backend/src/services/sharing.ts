@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
-import { groupMembers, groups, users } from '../db/schema.js'
-import { loadAccess, requireGroup } from './access.js'
+import { groupMembers, users } from '../db/schema.js'
+import { loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
 import type { Role } from './permissions.js'
 import { ServiceError } from './errors.js'
@@ -38,11 +38,10 @@ export const createSharingService = (db: Database) => ({
   set: async (userId: string, id: string, input: { email: string; role: Role }) => {
     const access = await loadAccess(db, userId)
     assertSharingOwner(access, id)
-    const chain = ancestors(access, id)
     await db.transaction(async tx => {
-      // Every membership change in this tree locks the same root, protecting its last owner.
-      await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, chain.at(-1)!)).for('update')
-      assertSharingOwner(await loadAccess(tx, userId), id)
+      const current = await lockAccess(tx, userId)
+      assertSharingOwner(current, id)
+      const chain = ancestors(current, id)
       const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1)
       if (!target) throw new ServiceError(404, 'No account with this email.')
       await tx.insert(groupMembers).values({ groupId: id, userId: target.id, role: input.role }).onDuplicateKeyUpdate({ set: { role: input.role } })
@@ -53,10 +52,10 @@ export const createSharingService = (db: Database) => ({
   remove: async (userId: string, id: string, targetId: string) => {
     const access = await loadAccess(db, userId)
     assertSharingOwner(access, id)
-    const chain = ancestors(access, id)
     await db.transaction(async tx => {
-      await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, chain.at(-1)!)).for('update')
-      assertSharingOwner(await loadAccess(tx, userId), id)
+      const current = await lockAccess(tx, userId)
+      assertSharingOwner(current, id)
+      const chain = ancestors(current, id)
       const [result] = await tx.delete(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userId, targetId)))
       if (!result.affectedRows) throw new ServiceError(404, 'No direct membership in this group.')
       const owners = await tx.select({ id: groupMembers.userId }).from(groupMembers).where(and(inArray(groupMembers.groupId, chain), eq(groupMembers.role, 'owner')))

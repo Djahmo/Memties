@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
 import { entries, groupMembers, groups, personGroups } from '../db/schema.js'
 import { ServiceError } from './errors.js'
-import { loadAccess } from './access.js'
+import { loadAccess, lockAccess, requireGroup } from './access.js'
 
 export const createGroupService = (db: Database) => {
   const list = async (userId: string) => {
@@ -79,6 +79,8 @@ export const createGroupService = (db: Database) => {
       if (input.parentId) await requireOwner(userId, input.parentId)
       const id = randomUUID()
       await db.transaction(async tx => {
+        const access = await lockAccess(tx, userId)
+        if (input.parentId && requireGroup(access, input.parentId).role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
         await tx.insert(groups).values({ id, ...input })
         // Child access comes exclusively from its parent at creation.
         if (!input.parentId) await tx.insert(groupMembers).values({ userId, groupId: id, role: 'owner' })
@@ -88,7 +90,11 @@ export const createGroupService = (db: Database) => {
     update: async (userId: string, id: string, input: { name: string; description: string }) => {
       const group = await requireOwner(userId, id)
       if (group.isPersonal) throw new ServiceError(403, 'The Personal vault is protected.')
-      await db.update(groups).set(input).where(eq(groups.id, id))
+      await db.transaction(async tx => {
+        const access = await lockAccess(tx, userId)
+        if (requireGroup(access, id).role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
+        await tx.update(groups).set(input).where(eq(groups.id, id))
+      })
       return { ...group, ...input }
     },
   }

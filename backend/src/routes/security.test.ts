@@ -9,8 +9,8 @@ const unused = async (): Promise<never> => { throw new Error('Protected service 
 
 test('HTTP rejects anonymous requests, foreign origins and malformed inputs', async t => {
   const app = await createApp(config, {
-    auth: { authenticate: async token => token === 'valid' ? user : null, register: unused, login: unused, logout: unused },
-    groups: { list: async () => [], create: unused, update: unused },
+    auth: { authenticate: async token => token === 'valid' ? user : null, register: unused, login: unused, logout: unused, externalLogin: unused },
+    groups: { list: async () => [], create: unused, update: unused, move: unused, remove: unused },
   })
   t.after(() => app.close())
   assert.equal((await app.inject({ url: '/api/groups' })).statusCode, 401)
@@ -31,10 +31,11 @@ test('session cookies are HttpOnly, Secure in production, and cleared on logout'
     auth: {
       authenticate: async () => null,
       register: unused,
+      externalLogin: unused,
       login: async () => ({ user, token: 'new-session' }),
       logout: async token => { revoked = token },
     },
-    groups: { list: unused, create: unused, update: unused },
+    groups: { list: unused, create: unused, update: unused, move: unused, remove: unused },
   })
   t.after(() => app.close())
   const headers = { origin: 'https://memties.example' }
@@ -53,12 +54,12 @@ test('session cookies are HttpOnly, Secure in production, and cleared on logout'
 
 test('registration can be disabled and login attempts are rate limited', async t => {
   const app = await createApp({ ...config, ALLOW_REGISTRATION: false }, {
-    auth: { authenticate: async () => null, register: unused, login: unused, logout: unused },
-    groups: { list: unused, create: unused, update: unused },
+    auth: { authenticate: async () => null, register: unused, login: unused, logout: unused, externalLogin: unused },
+    groups: { list: unused, create: unused, update: unused, move: unused, remove: unused },
   })
   t.after(() => app.close())
   const headers = { origin: config.APP_ORIGIN }
-  assert.deepEqual((await app.inject({ url: '/api/auth/config' })).json(), { registrationEnabled: false })
+  assert.deepEqual((await app.inject({ url: '/api/auth/config' })).json(), { registrationEnabled: false, ldapEnabled: false, samlEnabled: false })
   assert.equal((await app.inject({ method: 'POST', url: '/api/auth/register', headers, payload: {} })).statusCode, 403)
   for (let attempt = 0; attempt < 10; attempt++) {
     assert.equal((await app.inject({ method: 'POST', url: '/api/auth/login', headers, payload: {} })).statusCode, 400)

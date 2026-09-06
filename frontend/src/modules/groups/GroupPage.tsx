@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { Bell } from 'lucide-react'
+import { ReminderList } from '../reminders/ReminderList'
 import { useEffect, useState } from 'react'
 import { ChevronRight, FilePlus2, FileText, Folder, FolderPlus, LockKeyhole, LogOut, Network, Plus, Settings, Share2, UserPlus, UsersRound } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
@@ -17,7 +19,7 @@ import { SharingPanel } from './SharingPanel'
 type GroupFormState = { mode: 'create'; parent: Group | null } | { mode: 'edit'; group: Group }
 type View = { kind: 'group' } | { kind: 'person'; id: string } | { kind: 'person-form'; existing?: Person } | { kind: 'sharing' }
   | { kind: 'entry-form'; person?: SelectedPerson; entry?: Entry; returnPersonId?: string }
-const tabs = [{ id: 'people', name: 'People', Icon: UsersRound }, { id: 'entries', name: 'Entries', Icon: FileText }, { id: 'groups', name: 'Subgroups', Icon: Folder }] as const
+const tabs = [{ id: 'people', name: 'People', Icon: UsersRound }, { id: 'entries', name: 'Entries', Icon: FileText }, { id: 'reminders', name: 'Reminders', Icon: Bell }, { id: 'groups', name: 'Subgroups', Icon: Folder }] as const
 
 export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
   const { t } = useTranslation()
@@ -26,7 +28,7 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<GroupFormState | null>(null)
   const [view, setView] = useState<View>({ kind: 'group' })
-  const [tab, setTab] = useState<'people' | 'entries' | 'groups'>('people')
+  const [tab, setTab] = useState<'people' | 'entries' | 'groups' | 'reminders'>('people')
   const [revision, setRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -63,7 +65,7 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
   while (ancestor) { breadcrumbs.unshift(ancestor); ancestor = groups.find(group => group.id === ancestor?.parentId) }
   const children = groups.filter(group => group.parentId === selectedId)
   return <div className="min-h-screen flex flex-col">
-    <header className="h-20 px-6 md:px-10 bg-surface border-b border-line flex items-center justify-between gap-4"><a href="/" className="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight text-accent"><Network size={26} aria-hidden="true" />Memties</a><div className="flex items-center gap-4"><span className="text-sm hidden sm:block">{user.displayName}</span><PreferencesButton /><button className="secondary text-sm" aria-label={t('Sign out')} disabled={signingOut} onClick={logout}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{signingOut ? t("Signing out…") : t("Sign out")}</span></button></div></header>
+    <header className="h-20 px-6 md:px-10 bg-surface border-b border-line flex items-center justify-between gap-4"><a href="/" className="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight text-accent"><Network size={26} aria-hidden="true" />Memties</a><div className="flex items-center gap-4"><span className="text-sm hidden sm:block">{user.displayName}</span><PreferencesButton authenticated /><button className="secondary text-sm" aria-label={t('Sign out')} disabled={signingOut} onClick={logout}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{signingOut ? t("Signing out…") : t("Sign out")}</span></button></div></header>
     <div className="flex-1 grid md:grid-cols-[minmax(260px,1fr)_2fr]">
       <aside className="bg-subtle border-b md:(border-b-0 border-r) border-line p-5 md:p-7 min-w-0">
         <div className="flex justify-between items-center mb-5"><h2 className="eyebrow">{t("Your groups")}</h2><button disabled={loading || !!error} className="secondary text-sm" onClick={() => { setForm({ mode: 'create', parent: null }); setNotice('') }}><Plus size={16} aria-hidden="true" />{t("New group")}</button></div>
@@ -82,9 +84,10 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
               <div className="flex justify-between items-start gap-4 flex-wrap"><div className="min-w-0"><span className="badge inline-flex items-center gap-1.5">{selected.isPrivate && <LockKeyhole size={12} aria-hidden="true" />}{selected.isPrivate ? t("Private vault") : t('{{role}} access', { role: t(selected.role) })}</span><h1 className="text-3xl md:text-4xl font-semibold tracking-tight mt-4 break-words">{selected.name}</h1></div>{selected.role === 'owner' && !selected.isPersonal && <button className="secondary" onClick={() => setForm({ mode: 'edit', group: selected })}><Settings size={17} aria-hidden="true" />{t("Settings")}</button>}</div>
               {selected.role === 'owner' && !selected.isPrivate && <button className="secondary mt-4" onClick={() => setView({ kind: 'sharing' })}><Share2 size={17} aria-hidden="true" />{t("Share group")}</button>}<p className="muted mt-4 max-w-xl whitespace-pre-wrap break-words">{selected.description || (selected.isPrivate ? t("A space just for you. Entries organized here stay within your private vault.") : t("Keep the people and context of this part of your life together."))}</p>
               {selected.role !== 'viewer' && <div className="flex flex-wrap gap-3 mt-6"><button className="primary text-sm" onClick={() => setView({ kind: 'entry-form' })}><FilePlus2 size={17} aria-hidden="true" />{t("New entry")}</button><button className="secondary text-sm" onClick={() => setView({ kind: 'person-form' })}><UserPlus size={17} aria-hidden="true" />{t("Add contact")}</button></div>}
-              <nav aria-label={t("Group content")} className="flex gap-2 border-b border-line mt-8 mb-5">{tabs.map(({ id, name, Icon }) => <button key={id} className={`flex items-center gap-2 px-3 py-3 text-sm border-b-2 ${tab === id ? 'border-accent text-accent font-semibold' : 'border-transparent muted hover:text-accent'}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} aria-hidden="true" />{t(name)}</button>)}</nav>
+              <nav aria-label={t("Group content")} className="flex gap-2 overflow-x-auto border-b border-line mt-8 mb-5">{tabs.map(({ id, name, Icon }) => <button key={id} className={`flex items-center gap-2 px-3 py-3 text-sm border-b-2 ${tab === id ? 'border-accent text-accent font-semibold' : 'border-transparent muted hover:text-accent'}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} aria-hidden="true" />{t(name)}</button>)}</nav>
               {tab === 'people' && <PeopleList key={`${selected.id}:${revision}`} groupId={selected.id} onSelect={person => setView({ kind: 'person', id: person.id })} />}
               {tab === 'entries' && <EntryTimeline key={`${selected.id}:${revision}`} groups={groups} initialGroupId={selected.id} onEdit={editEntry} onPerson={id => setView({ kind: 'person', id })} />}
+              {tab === 'reminders' && <ReminderList key={selected.id} groupId={selected.id} />}
               {tab === 'groups' && <section aria-labelledby="subgroups-title"><div className="flex justify-between items-center mb-5 gap-4"><h2 id="subgroups-title" className="text-lg font-semibold">{t("Subgroups")} <span className="muted font-normal">{children.length}</span></h2>{selected.role === 'owner' && <button className="primary text-sm" onClick={() => setForm({ mode: 'create', parent: selected })}><FolderPlus size={17} aria-hidden="true" />{t("Add subgroup")}</button>}</div>
                 {children.length ? <div className="grid xl:grid-cols-2 gap-4">{children.sort((a, b) => a.name.localeCompare(b.name)).map(group => <button key={group.id} className="card text-left transition-colors hover:(border-strongline bg-hover)" onClick={() => selectGroup(group.id)}><Folder size={24} className="text-icon" aria-hidden="true" /><h3 className="font-semibold mt-3 break-words">{group.name}</h3><p className="muted text-sm mt-2 line-clamp-2 break-words">{group.description || (group.isPrivate ? t("Private context") : t("Access inherited from this group"))}</p></button>)}</div> : <div className="border border-dashed border-strongline rounded-xl py-12 px-6 text-center"><FolderPlus size={32} className="mx-auto text-icon" aria-hidden="true" /><h3 className="font-semibold mt-4">{t("Give your memories a place")}</h3><p className="muted text-sm max-w-sm mx-auto mt-2">{selected.isPrivate ? t("Create a subgroup for friends, family, or any other part of your personal life.") : t("Organize this context into projects, organizations, or teams.")}</p></div>}
               </section>}

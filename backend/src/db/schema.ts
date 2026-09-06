@@ -75,3 +75,34 @@ export const entryPeople = mysqlTable('entry_people', {
   entryId: varchar('entry_id', { length: 36 }).notNull().references(() => entries.id, { onDelete: 'cascade' }),
   personId: varchar('person_id', { length: 36 }).notNull().references(() => people.id, { onDelete: 'restrict' }),
 }, table => [primaryKey({ columns: [table.entryId, table.personId] }), index('person_history').on(table.personId, table.entryId)])
+
+export const reminders = mysqlTable('reminders', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  entryId: varchar('entry_id', { length: 36 }).notNull().references(() => entries.id, { onDelete: 'restrict' }),
+  title: varchar('title', { length: 240 }).notNull(),
+  dueAt: datetime('due_at', { mode: 'date', fsp: 3 }).notNull(),
+  status: mysqlEnum('status', ['pending', 'completed']).notNull().default('pending'),
+  creatorId: varchar('creator_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'restrict' }),
+  notifyByEmail: mysqlEnum('notify_by_email', ['yes', 'no']).notNull().default('no'),
+  language: mysqlEnum('language', ['fr', 'en']).notNull().default('en'),
+  notifiedAt: datetime('notified_at', { mode: 'date', fsp: 3 }),
+  notificationAttemptAt: datetime('notification_attempt_at', { mode: 'date', fsp: 3 }),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, table => [index('reminder_entry').on(table.entryId), index('reminder_due').on(table.status, table.dueAt, table.id)])
+
+export const apiTokens = mysqlTable('api_tokens', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+  userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 120 }).notNull(),
+  access: mysqlEnum('access', ['read', 'write']).notNull().default('read'),
+  expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, table => [index('api_token_user').on(table.userId)])
+
+export const samlRequests = mysqlTable('saml_requests', {
+  id: varchar('id', { length: 200 }).primaryKey(),
+  value: text('value').notNull(),
+  createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+})

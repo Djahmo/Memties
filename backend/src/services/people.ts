@@ -2,19 +2,19 @@ import { randomUUID } from 'node:crypto'
 import { and, asc, eq, exists, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
 import { people, personGroups } from '../db/schema.js'
-import { groupScope, loadAccess, requireGroup } from './access.js'
+import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
 import { ServiceError } from './errors.js'
 import type { ListInput, PersonInput } from './content-input.js'
 import { searchPattern } from './content-input.js'
 
-export const personVisibility = (db: Database, groupIds: string[]) => groupIds.length
+export const personVisibility = (db: Pick<Database, 'select'>, groupIds: string[]) => groupIds.length
   ? exists(db.select({ id: personGroups.personId }).from(personGroups).where(and(eq(personGroups.personId, people.id), inArray(personGroups.groupId, groupIds))))
   : sql`false`
 
-export const visiblePersonIds = (db: Database, access: Access) => db.select({ id: people.id }).from(people).where(personVisibility(db, [...access.permissions.keys()]))
+export const visiblePersonIds = (db: Pick<Database, 'select'>, access: Access) => db.select({ id: people.id }).from(people).where(personVisibility(db, [...access.permissions.keys()]))
 
-export const requirePerson = async (db: Database, access: Access, id: string) => {
+export const requirePerson = async (db: Pick<Database, 'select'>, access: Access, id: string) => {
   const [person] = await db.select().from(people).where(and(eq(people.id, id), personVisibility(db, [...access.permissions.keys()]))).limit(1)
   if (!person) throw new ServiceError(404, 'Person not found.')
   return person
@@ -44,8 +44,8 @@ export const createPeopleService = (db: Database) => {
     update: async (userId: string, id: string, input: PersonInput) => {
       await requirePerson(db, await loadAccess(db, userId), id)
       await db.transaction(async tx => {
+        const access = await lockAccess(tx, userId)
         await tx.select({ id: people.id }).from(people).where(eq(people.id, id)).for('update')
-        const access = await loadAccess(tx, userId)
         const links = await tx.select().from(personGroups).where(eq(personGroups.personId, id))
         if (!links.length || links.some(link => !access.permissions.has(link.groupId) || access.permissions.get(link.groupId)?.role === 'viewer')) {
           throw new ServiceError(403, 'You cannot edit this contact.')
@@ -73,6 +73,8 @@ export const createPeopleService = (db: Database) => {
       for (const id of groupIds) requireGroup(access, id, true)
       const id = randomUUID()
       await db.transaction(async tx => {
+        const current = await lockAccess(tx, userId)
+        for (const groupId of groupIds) requireGroup(current, groupId, true)
         await tx.insert(people).values({ id, ...fields, creatorId: userId })
         await tx.insert(personGroups).values([...new Set(groupIds)].map(groupId => ({ personId: id, groupId })))
       })

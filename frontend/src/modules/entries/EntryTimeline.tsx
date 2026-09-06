@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { EntryReminders } from '../reminders/ReminderList'
 import { useState } from 'react'
 import { CalendarDays, FileText, Filter, LockKeyhole, Pencil, Search, X } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
@@ -39,6 +40,7 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
       <p className="badge mt-3 inline-flex gap-1 items-center max-w-full break-words">{groups.find(group => group.id === entry.groupId)?.isPrivate && <LockKeyhole size={12} className="shrink-0" aria-hidden="true" />}{groupLabel(groups, entry.groupId)}</p>
       <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
       {!!entry.people.length && <div className="mt-4 flex flex-wrap gap-2">{entry.people.map(person => <button key={person.id} className="text-xs border border-line rounded-full px-3 py-1 hover:(bg-soft border-strongline)" onClick={() => onPerson(person.id)}>{person.displayName}</button>)}</div>}
+      <EntryReminders entryId={entry.id} canCreate={entry.canEdit} />
     </article>)}</div> : <div className="border border-dashed border-strongline rounded-xl text-center p-10"><FileText size={32} className="mx-auto text-icon" aria-hidden="true" /><h3 className="font-semibold mt-4">{t("No entries in this view")}</h3><p className="muted text-sm mt-2">{t("Add your first memory, or adjust the filters.")}</p></div>}<Pagination offset={offset} nextOffset={data.nextOffset} onChange={setOffset} /></>}
   </section>
 }

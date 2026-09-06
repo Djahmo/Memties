@@ -54,7 +54,7 @@ export const GroupActions = ({ group }: { group: Group }) => {
     <fieldset disabled={busy} className="space-y-4">
       <h3 className="font-semibold flex items-center gap-2"><FolderInput size={18} />{t('Move group')}</h3>
       <label className="field-label">{t('Destination group')}
-        <select className="input-field" value={parentId} disabled={!loaded} onChange={event => { setParentId(event.target.value); setConfirmed(false) }}>
+        <select className="input-field" aria-label={t('Destination group')} value={parentId} disabled={!loaded} onChange={event => { setParentId(event.target.value); setConfirmed(false) }}>
           {!group.isPrivate && <option value="">{t('Root level')}</option>}
           {destinations.map(item => <option key={item.id} value={item.id}>{groupLabel(labels, item.id)}</option>)}
         </select>

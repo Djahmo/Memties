@@ -18,7 +18,7 @@ export const authRoutes = async (app: FastifyInstance, auth: ReturnType<typeof c
   const cookieOptions = { path: '/', httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax' as const }
   const limits = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }
 
-  app.get('/api/auth/config', async () => ({ registrationEnabled: config.ALLOW_REGISTRATION }))
+  app.get('/api/auth/config', async () => ({ registrationEnabled: config.ALLOW_REGISTRATION, ldapEnabled: !!config.LDAP_URL, samlEnabled: !!config.SAML_ENTRY_POINT }))
   app.get('/api/auth/me', async request => {
     if (!request.user) throw new ServiceError(401, 'Please sign in.')
     return request.user

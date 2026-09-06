@@ -1,15 +1,20 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
 import { groupMembers, groups } from '../db/schema.js'
 import { resolveGroupAccess } from './permissions.js'
 import { ServiceError } from './errors.js'
 
 export const loadAccess = async (db: Pick<Database, 'select'>, userId: string) => {
-  const [nodes, memberships] = await Promise.all([
-    db.select().from(groups),
-    db.select({ groupId: groupMembers.groupId, role: groupMembers.role }).from(groupMembers).where(eq(groupMembers.userId, userId)),
-  ])
+  const rows = await db.select({ node: groups, role: groupMembers.role }).from(groups)
+    .leftJoin(groupMembers, and(eq(groupMembers.groupId, groups.id), eq(groupMembers.userId, userId)))
+  const nodes = rows.map(row => row.node)
+  const memberships = rows.flatMap(row => row.role ? [{ groupId: row.node.id, role: row.role }] : [])
   return { nodes, permissions: resolveGroupAccess(userId, nodes, memberships) }
+}
+// V1 serializes writes against structural and membership changes in one lock order.
+export const lockAccess = async (db: Pick<Database, 'select'>, userId: string) => {
+  await db.select({ id: groups.id }).from(groups).orderBy(groups.id).for('update')
+  return loadAccess(db, userId)
 }
 export type Access = Awaited<ReturnType<typeof loadAccess>>
 

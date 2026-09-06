@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { ReminderList } from '../reminders/ReminderList'
 import { ArrowLeft, Building2, FilePlus2, Mail, Pencil, Phone, UserRound } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
 import type { Entry, Group, Person } from '../../types/api'
@@ -17,6 +18,7 @@ export const PersonDetail = ({ id, groupId, groups, onBack, onEntry, onEditEntry
       {!person.canEdit && <p className="muted text-xs mt-4">{t('Editing requires write access to every group containing this contact.')}</p>}{person.canEdit && <button className="secondary mt-4" onClick={() => onEdit(person)}><Pencil size={16} aria-hidden="true" />{t("Edit contact")}</button>}<dl className="mt-6 space-y-2 text-sm">{(person.firstName || person.lastName) && <div><dt className="sr-only">{t("Full name")}</dt><dd>{[person.firstName, person.lastName].filter(Boolean).join(' ')}</dd></div>}{(person.organization || person.jobTitle) && <div><dt className="sr-only">{t("Work")}</dt><dd className="flex items-center gap-2"><Building2 size={16} className="muted shrink-0" aria-hidden="true" />{[person.jobTitle, person.organization].filter(Boolean).join(' · ')}</dd></div>}{person.email && <div><dt className="sr-only">{t("Email")}</dt><dd className="flex items-center gap-2"><Mail size={16} className="muted shrink-0" aria-hidden="true" /><a className="hover:underline break-all" href={`mailto:${person.email}`}>{person.email}</a></dd></div>}{person.phone && <div><dt className="sr-only">{t("Phone")}</dt><dd className="flex items-center gap-2"><Phone size={16} className="muted shrink-0" aria-hidden="true" /><span>{person.phone}</span></dd></div>}</dl>
       <div className="flex flex-wrap gap-2 mt-5">{person.groupIds.map(id => <span className="badge" key={id}>{groupLabel(groups, id)}</span>)}</div>
       {person.notes && <div className="rounded-lg bg-subtle p-4 text-sm whitespace-pre-wrap break-words mt-5">{person.notes}</div>}
+      <div className="mt-8"><ReminderList personId={person.id} /></div>
       <h2 className="text-xl font-semibold mt-9 mb-3">{t("History")}</h2><EntryTimeline groups={groups} initialGroupId={groupId} personId={person.id} onEdit={onEditEntry} onPerson={onPerson} />
     </>}
   </section>

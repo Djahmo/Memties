@@ -19,6 +19,32 @@ export const createAuthService = (db: Database) => {
   }
 
   return {
+    externalLogin: async (provider: string, subject: string, profile: { email: string; displayName: string }, linkUserId?: string) => {
+      const user = await db.transaction(async tx => {
+        const [identity] = await tx.select({ user: { id: users.id, email: users.email, displayName: users.displayName } }).from(identities)
+          .innerJoin(users, eq(users.id, identities.userId)).where(and(eq(identities.provider, provider), eq(identities.subject, subject))).limit(1)
+        if (identity) {
+          if (linkUserId && identity.user.id !== linkUserId) throw new ServiceError(409, 'This identity is already linked to another account.')
+          return identity.user
+        }
+        if (linkUserId) {
+          const [existing] = await tx.select({ id: users.id, email: users.email, displayName: users.displayName }).from(users).where(eq(users.id, linkUserId)).for('update')
+          if (!existing) throw new ServiceError(401, 'Please sign in.')
+          await tx.insert(identities).values({ id: randomUUID(), userId: existing.id, provider, subject })
+          return existing
+        }
+        const [collision] = await tx.select({ id: users.id }).from(users).where(eq(users.email, profile.email)).limit(1)
+        if (collision) throw new ServiceError(409, 'Sign in to your existing account and link this provider in settings.')
+        const created = { id: randomUUID(), ...profile }
+        await tx.insert(users).values(created)
+        await tx.insert(identities).values({ id: randomUUID(), userId: created.id, provider, subject })
+        const groupId = randomUUID()
+        await tx.insert(groups).values({ id: groupId, name: 'Personal', personalOwnerId: created.id })
+        await tx.insert(groupMembers).values({ groupId, userId: created.id, role: 'owner' })
+        return created
+      })
+      return createSession(user)
+    },
     register: async (input: { email: string; displayName: string; password: string }) => {
       const user = { id: randomUUID(), email: input.email, displayName: input.displayName }
       const passwordHash = await hashPassword(input.password)

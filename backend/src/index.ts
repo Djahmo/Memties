@@ -7,11 +7,20 @@ import { users } from './db/schema.js'
 import { createPeopleService } from './services/people.js'
 import { createEntryService } from './services/entries.js'
 import { createSharingService } from './services/sharing.js'
+import { createReminderService } from './services/reminders.js'
+import { createTokenService } from './auth/tokens.js'
+import { createProviderService } from './auth/providers.js'
+import { startReminderMail } from './services/mail.js'
 
 const config = readConfig()
 const { db, pool } = connectDatabase(config.DATABASE_URL)
-const app = await createApp(config, { auth: createAuthService(db), groups: createGroupService(db), sharing: createSharingService(db), content: { people: createPeopleService(db), entries: createEntryService(db) } })
+const auth = createAuthService(db)
+const app = await createApp(config, {
+  auth, providers: await createProviderService(db, auth, config), tokens: createTokenService(db), reminders: createReminderService(db),
+  groups: createGroupService(db), sharing: createSharingService(db), content: { people: createPeopleService(db), entries: createEntryService(db) },
+})
 app.addHook('onClose', async () => { await pool.end() })
+startReminderMail(app, db, config)
 const shutdown = async () => { await app.close() }
 process.once('SIGINT', shutdown)
 process.once('SIGTERM', shutdown)

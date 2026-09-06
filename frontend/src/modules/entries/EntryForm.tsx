@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useApi } from '../../hooks/useApi'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { FilePenLine, LockKeyhole, UsersRound } from 'lucide-react'
@@ -16,7 +17,9 @@ const localDateTime = (date: Date) => {
 export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel }: {
   groups: Group[]; groupId: string; person?: SelectedPerson; existing?: Entry; onSaved: (entry: Entry) => void; onCancel: () => void
 }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [addReminder, setAddReminder] = useState(false)
+  const { data: reminderConfig } = useApi<{ mailEnabled: boolean }>('/reminders/config')
   const [destination, setDestination] = useState(existing?.groupId ?? groupId)
   const [selected, setSelected] = useState<SelectedPerson[]>(existing?.people ?? (person ? [person] : []))
   const [error, setError] = useState('')
@@ -31,6 +34,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       onSaved(await api<Entry>(existing ? `/entries/${existing.id}` : '/entries', { method: existing ? 'PATCH' : 'POST', body: {
         title: String(form.get('title')).trim(), body: String(form.get('body')),
         occurredAt: new Date(String(form.get('occurredAt'))).toISOString(), groupId: destination, personIds: selected.map(person => person.id),
+        ...(!existing && addReminder ? { reminder: { title: String(form.get('reminderTitle')).trim(), dueAt: new Date(String(form.get('reminderDue'))).toISOString(), notifyByEmail: form.get('reminderEmail') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } } : {}),
       } }))
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
   }
@@ -42,6 +46,11 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       {moved && <label key={destination} className="flex gap-3 text-sm rounded-lg border border-warningline bg-warning p-3"><input type="checkbox" className="size-4 shrink-0 mt-0.5 accent-[#245b47]" required />{t("I understand that moving this entry changes who can access it.")}</label>}
       <label className="field-label">{t("Content")}<textarea className="input-field resize-y" name="body" defaultValue={existing?.body} rows={7} maxLength={10000} placeholder={t("What would you like to remember?")} /></label>
       <PersonPicker selected={selected} onChange={setSelected} />
+      {!existing && <div className="rounded-lg bg-soft p-4 space-y-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={addReminder} onChange={event => setAddReminder(event.target.checked)} />{t('Add reminder')}</label>{addReminder && <>
+        <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" maxLength={240} required /></label>
+        <label className="field-label">{t('Due date')}<input className="input-field" type="datetime-local" name="reminderDue" required /></label>
+        {reminderConfig?.mailEnabled && <label className="flex gap-2 items-center text-sm"><input type="checkbox" name="reminderEmail" />{t('Email me when due')}</label>}
+      </>}</div>}
       <p className="muted text-xs">{t("Linked contact profiles keep their own group permissions.")}</p>
       {error && <p role="alert" className="error">{t(error)}</p>}
       <div className="flex gap-3"><button className="primary" type="submit">{busy ? t("Saving…") : existing ? t("Save entry") : t("Create entry")}</button><button className="secondary" type="button" onClick={onCancel}>{t("Cancel")}</button></div>

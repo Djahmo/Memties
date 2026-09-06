@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Settings2, X } from 'lucide-react'
+import { ProviderSettings, TokenSettings } from '../modules/auth/Integrations'
 import { getPreferences, subscribePreferences, updatePreferences } from '../i18n/preferences'
 
-export const PreferencesButton = () => {
+export const PreferencesButton = ({ authenticated = false }: { authenticated?: boolean }) => {
   const { t } = useTranslation()
   const preferences = useSyncExternalStore(subscribePreferences, getPreferences)
   const [open, setOpen] = useState(false)
@@ -16,6 +17,7 @@ export const PreferencesButton = () => {
       <label className="field-label">{t('Language')}<select className="input-field" aria-label={t('Language')} value={preferences.language} onChange={event => { const language = event.target.value; if (language === 'browser' || language === 'en' || language === 'fr') updatePreferences({ language }) }}><option value="browser">{t('Browser language')}</option><option value="fr">Français</option><option value="en">English</option></select></label>
       <label className="field-label mt-5">{t('Appearance')}<select className="input-field" aria-label={t('Appearance')} value={preferences.theme} onChange={event => { const theme = event.target.value; if (theme === 'system' || theme === 'light' || theme === 'dark') updatePreferences({ theme }) }}><option value="system">{t('System theme')}</option><option value="light">{t('Light')}</option><option value="dark">{t('Dark')}</option></select></label>
       <p className="muted text-sm mt-5">{t('Your preferences are saved in this browser.')}</p>
+      {authenticated && open && <><ProviderSettings /><TokenSettings /></>}
     </dialog>
   </>
 }
