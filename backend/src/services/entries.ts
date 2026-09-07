@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, exists, gte, inArray, lte, or, sql } from 'drizzle-orm'
-import type { Database } from '../db/index.js'
+import type { Database, ServiceDatabase } from '../db/index.js'
 import { entries, entryPeople, people, reminders, users } from '../db/schema.js'
 import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
@@ -9,7 +9,7 @@ import { ServiceError } from './errors.js'
 import type { EntryInput, HistoryInput } from './content-input.js'
 import { searchPattern } from './content-input.js'
 
-export const createEntryService = (db: Database) => {
+export const createEntryService = (db: ServiceDatabase) => {
   const present = async (access: Access, rows: typeof entries.$inferSelect[]) => {
     if (!rows.length) return []
     const [participants, creators] = await Promise.all([

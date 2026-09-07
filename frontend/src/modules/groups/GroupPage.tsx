@@ -10,6 +10,7 @@ import { MobileGroups } from './MobileGroups'
 import { GroupForm } from './GroupForm'
 import { PeopleList } from '../people/PeopleList'
 import { PersonForm } from '../people/PersonForm'
+import { ContactImport } from '../people/ContactImport'
 import { PersonDetail } from '../people/PersonDetail'
 import { EntryForm } from '../entries/EntryForm'
 import { EntryTimeline } from '../entries/EntryTimeline'
@@ -87,7 +88,7 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
               {selected.role === 'owner' && !selected.isPrivate && <button className="secondary mt-4" onClick={() => setView({ kind: 'sharing' })}><Share2 size={17} aria-hidden="true" />{t("Share group")}</button>}<p className="muted mt-4 max-w-xl whitespace-pre-wrap break-words">{selected.description || (selected.isPrivate ? t("A space just for you. Entries organized here stay within your private vault.") : t("Keep the people and context of this part of your life together."))}</p>
               {selected.role !== 'viewer' && <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 mt-5"><button className="primary text-sm" onClick={() => setView({ kind: 'entry-form' })}><FilePlus2 size={17} aria-hidden="true" />{t("New entry")}</button><button className="secondary text-sm" onClick={() => setView({ kind: 'person-form' })}><UserPlus size={17} aria-hidden="true" />{t("Add contact")}</button></div>}
               <nav aria-label={t("Group content")} className="grid grid-cols-4 gap-1 border-b border-line mt-6 sm:mt-8 mb-5">{tabs.map(({ id, name, Icon }) => <button key={id} className={`flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-2 px-1 sm:px-3 py-3 text-xs sm:text-sm border-b-2 ${tab === id ? 'border-accent text-accent font-semibold' : 'border-transparent muted hover:text-accent'}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} aria-hidden="true" />{t(name)}</button>)}</nav>
-              {tab === 'people' && <PeopleList key={`${selected.id}:${revision}`} groupId={selected.id} onSelect={person => setView({ kind: 'person', id: person.id })} />}
+              {tab === 'people' && <>{selected.role !== 'viewer' && <ContactImport key={selected.id} groupId={selected.id} onImported={() => setRevision(value => value + 1)} />}<PeopleList key={`${selected.id}:${revision}`} groupId={selected.id} onSelect={person => setView({ kind: 'person', id: person.id })} /></>}
               {tab === 'entries' && <EntryTimeline key={`${selected.id}:${revision}`} groups={groups} initialGroupId={selected.id} onEdit={editEntry} onPerson={id => setView({ kind: 'person', id })} />}
               {tab === 'reminders' && <ReminderList key={selected.id} groupId={selected.id} />}
               {tab === 'groups' && <section aria-labelledby="subgroups-title"><div className="flex justify-between items-center mb-5 gap-4"><h2 id="subgroups-title" className="text-lg font-semibold">{t("Subgroups")} <span className="muted font-normal">{children.length}</span></h2>{selected.role === 'owner' && <button className="primary text-sm" onClick={() => setForm({ mode: 'create', parent: selected })}><FolderPlus size={17} aria-hidden="true" />{t("Add subgroup")}</button>}</div>

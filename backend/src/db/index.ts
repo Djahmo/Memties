@@ -8,3 +8,4 @@ export const connectDatabase = (url: string) => {
 }
 
 export type Database = ReturnType<typeof connectDatabase>['db']
+export type ServiceDatabase = Pick<Database, 'select' | 'insert' | 'update' | 'delete' | 'transaction'>

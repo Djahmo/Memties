@@ -264,5 +264,38 @@ export const fr = {
   'Editing requires write access to every group containing this contact.': 'La modification nécessite un accès en écriture à chaque groupe contenant ce contact.',
 }
 
+Object.assign(fr, {
+  'Export calendar (ICS)': 'Exporter le calendrier (ICS)',
+  'Import contacts (VCF)': 'Importer des contacts (VCF)',
+  'vCard 3.0 / 4.0. Import into the current group. Likely duplicates are skipped without merging.': 'vCard 3.0 / 4.0. Import dans le groupe courant. Les doublons probables sont ignorés sans fusion.',
+  'Contact file': 'Fichier de contacts',
+  'File too large.': 'Fichier trop volumineux.',
+  'Likely duplicate — skipped': 'Doublon probable — ignoré',
+  'Invalid contact — skipped': 'Contact invalide — ignoré',
+  'Import selected contacts': 'Importer les contacts sélectionnés',
+  'Imported: {{imported}}. Skipped: {{skipped}}.': 'Importés : {{imported}}. Ignorés : {{skipped}}.',
+  'Invalid vCard file.': 'Fichier vCard invalide.',
+  'Import up to 2000 contacts at a time.': 'Importez au maximum 2 000 contacts à la fois.',
+  'Only vCard 3.0 and 4.0 are supported.': 'Seuls les formats vCard 3.0 et 4.0 sont pris en charge.',
+  'Invalid contact selection.': 'Sélection de contacts invalide.',
+  'Memties import / export': 'Import / export Memties',
+  'Export only your accessible data, including Personal. Keep the file private.': 'Exporte uniquement vos données accessibles, y compris Personal. Conservez ce fichier à l’abri des regards.',
+  'Export Memties JSON': 'Exporter le JSON Memties',
+  'Import Memties JSON': 'Importer un JSON Memties',
+  'Invalid Memties file.': 'Fichier Memties invalide.',
+  'Import creates new copies in a new folder under Personal. Existing data is never merged or overwritten. Sharing, authors and email notifications are not transferred. Reimporting creates another copy.': 'L’import crée de nouvelles copies dans un nouveau dossier sous Personal. Les données existantes ne sont jamais fusionnées ni écrasées. Les partages, auteurs et notifications par e-mail ne sont pas transférés. Réimporter crée une autre copie.',
+  'Confirm import as new private copies': 'Confirmer l’import en nouvelles copies privées',
+  'Import completed. Reload to see the new groups.': 'Import terminé. Rechargez pour voir les nouveaux groupes.',
+  'Reload': 'Recharger',
+  'Working…': 'Traitement…',
+  'groups': 'Groupes', 'people': 'Personnes', 'entries': 'Entrées', 'reminders': 'Rappels', 'tags': 'Tags',
+  'Export is limited to 10000 objects per type.': 'L’export est limité à 10 000 objets par type.',
+  'Export exceeds the import file size limit.': 'L’export dépasse la taille maximale des fichiers importables.',
+  'Duplicate identifiers in import.': 'Le fichier contient des identifiants en double.',
+  'Invalid import relationships.': 'Les relations du fichier sont invalides.',
+  'Cyclic group hierarchy in import.': 'La hiérarchie des groupes contient un cycle.',
+  'Personal vault unavailable.': 'Le coffre Personal est indisponible.',
+})
+
 // English source phrases are also the stable translation keys.
 export const en: Record<string, string> = Object.fromEntries(Object.keys(fr).map(key => [key, key]))

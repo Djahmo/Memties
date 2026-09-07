@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, eq, exists, inArray } from 'drizzle-orm'
 import type { z } from 'zod'
-import type { Database } from '../db/index.js'
+import type { ServiceDatabase } from '../db/index.js'
 import { entries, entryPeople, groups, reminders } from '../db/schema.js'
 import { groupScope, loadAccess, requireGroup } from './access.js'
 import { requirePerson } from './people.js'
 import { ServiceError } from './errors.js'
 import type { reminderFields, reminderInput, reminderListInput } from './content-input.js'
 
-export const createReminderService = (db: Database) => ({
+export const createReminderService = (db: ServiceDatabase) => ({
   list: async (userId: string, input: z.infer<typeof reminderListInput>) => {
     const access = await loadAccess(db, userId)
     const scope = groupScope(access, input.groupId)

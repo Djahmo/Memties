@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, eq, exists, inArray, or, sql } from 'drizzle-orm'
-import type { Database } from '../db/index.js'
+import type { Database, ServiceDatabase } from '../db/index.js'
 import { people, personGroups } from '../db/schema.js'
 import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
@@ -20,7 +20,7 @@ export const requirePerson = async (db: Pick<Database, 'select'>, access: Access
   return person
 }
 
-export const createPeopleService = (db: Database) => {
+export const createPeopleService = (db: ServiceDatabase) => {
   const present = async (access: Access, rows: typeof people.$inferSelect[]) => {
     if (!rows.length) return []
     const links = await db.select().from(personGroups).where(inArray(personGroups.personId, rows.map(person => person.id)))

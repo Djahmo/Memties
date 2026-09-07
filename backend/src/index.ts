@@ -11,11 +11,15 @@ import { createReminderService } from './services/reminders.js'
 import { createTokenService } from './auth/tokens.js'
 import { createProviderService } from './auth/providers.js'
 import { startReminderMail } from './services/mail.js'
+import { createContactImportService } from './services/contact-import.js'
+import { createTransferService } from './services/transfer.js'
 
 const config = readConfig()
 const { db, pool } = connectDatabase(config.DATABASE_URL)
 const auth = createAuthService(db)
 const app = await createApp(config, {
+  contacts: createContactImportService(db),
+  transfer: createTransferService(db),
   auth, providers: await createProviderService(db, auth, config), tokens: createTokenService(db), reminders: createReminderService(db),
   groups: createGroupService(db), sharing: createSharingService(db), content: { people: createPeopleService(db), entries: createEntryService(db) },
 })

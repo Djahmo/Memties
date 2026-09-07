@@ -58,6 +58,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
   const current = editing && editing !== 'new' ? editing : null
   return <section className="space-y-3" aria-label={t('Reminders')}>
     <div className="flex flex-wrap items-center justify-between gap-3">
+      <a className="secondary text-sm" href={`/api/reminders/calendar.ics?${query}`}>{t('Export calendar (ICS)')}</a>
       <h3 className="font-semibold flex items-center gap-2"><Bell size={17} aria-hidden="true" />{t('Reminders')}</h3>
       <div className="flex gap-2 items-center"><select className="input-field text-sm py-2" aria-label={t('Reminder status')} value={status} onChange={event => { setStatus(event.target.value); setOffset(0) }}><option value="pending">{t('Pending')}</option><option value="completed">{t('Completed')}</option><option value="all">{t('All')}</option></select>
         {entryId && canCreate && <button type="button" className="secondary shrink-0" disabled={busy} onClick={() => { setEditing('new'); setError('') }} aria-label={t('Add reminder')}><Plus size={16} /></button>}

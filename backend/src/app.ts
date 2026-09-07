@@ -22,12 +22,18 @@ import type { createTokenService } from './auth/tokens.js'
 import { providerRoutes } from './routes/providers.js'
 import type { createProviderService } from './auth/providers.js'
 import { mcpRoutes } from './mcp/server.js'
+import { importRoutes } from './routes/imports.js'
+import type { createContactImportService } from './services/contact-import.js'
+import { transferRoutes } from './routes/transfer.js'
+import type { createTransferService } from './services/transfer.js'
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null }
 }
 
 type Services = {
+  contacts?: ReturnType<typeof createContactImportService>
+  transfer?: ReturnType<typeof createTransferService>
   auth: ReturnType<typeof createAuthService>; groups: ReturnType<typeof createGroupService>; content?: ContentServices; sharing?: ReturnType<typeof createSharingService>
   reminders?: ReturnType<typeof createReminderService>; tokens?: ReturnType<typeof createTokenService>; providers?: Awaited<ReturnType<typeof createProviderService>>
 }
@@ -57,11 +63,13 @@ export const createApp = async (config: Config, services: Services) => {
     return reply.code(500).send({ message: 'Something went wrong. Please try again.' })
   })
   app.get('/api/health', async () => ({ status: 'ok' }))
+  if (services.contacts) await app.register(async scope => importRoutes(scope, services.contacts!))
+  if (services.transfer) await app.register(async scope => transferRoutes(scope, services.transfer!))
   await app.register(async scope => authRoutes(scope, services.auth, config))
   await app.register(async scope => groupRoutes(scope, services.groups))
   if (services.content) await app.register(async scope => contentRoutes(scope, services.content!))
   if (services.sharing) await app.register(async scope => sharingRoutes(scope, services.sharing!))
-  if (services.reminders) await app.register(async scope => reminderRoutes(scope, services.reminders!, !!config.SMTP_HOST))
+  if (services.reminders) await app.register(async scope => reminderRoutes(scope, services.reminders!, !!config.SMTP_HOST, new URL(config.APP_ORIGIN).host))
   if (services.tokens) await app.register(async scope => tokenRoutes(scope, services.tokens!))
   if (services.providers) await app.register(async scope => providerRoutes(scope, services.providers!, services.auth, config))
   if (services.content && services.tokens && services.reminders) {

@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import type { Database } from '../db/index.js'
+import type { ServiceDatabase } from '../db/index.js'
 import { entries, groupMembers, groups, personGroups } from '../db/schema.js'
 import { ServiceError } from './errors.js'
 import { loadAccess, lockAccess, requireGroup } from './access.js'
 
-export const createGroupService = (db: Database) => {
+export const createGroupService = (db: ServiceDatabase) => {
   const list = async (userId: string) => {
     const { nodes, permissions: access } = await loadAccess(db, userId)
     return nodes.flatMap(node => {
