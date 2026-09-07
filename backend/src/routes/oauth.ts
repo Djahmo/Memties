@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { and, eq, gt, lt } from 'drizzle-orm'
 import formbody from '@fastify/formbody'
 import type { FastifyInstance } from 'fastify'
@@ -17,8 +17,9 @@ const redirectUri = z.url().max(2048).refine(value => {
 const registration = z.object({
   client_name: z.string().min(1).max(100).default('MCP client'),
   redirect_uris: z.array(redirectUri).min(1).max(10),
-  token_endpoint_auth_method: z.literal('none').default('none'),
-  grant_types: z.array(z.literal('authorization_code')).default(['authorization_code']),
+  token_endpoint_auth_method: z.enum(['none', 'client_secret_post', 'client_secret_basic']).default('client_secret_basic'),
+  grant_types: z.array(z.enum(['authorization_code', 'refresh_token'])).min(1)
+    .refine(values => values.includes('authorization_code')).default(['authorization_code']),
   response_types: z.array(z.literal('code')).default(['code']),
 })
 const authorization = z.object({
@@ -27,7 +28,7 @@ const authorization = z.object({
   state: z.string().max(2048).optional(), scope: z.string().max(200).default('memties:read'),
   resource: z.string().max(2048).optional(),
 })
-type Client = z.infer<typeof registration>
+type Client = z.infer<typeof registration> & { secretHash?: string }
 type Grant = z.infer<typeof authorization> & { userId: string }
 
 export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Config) => {
@@ -54,7 +55,7 @@ export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Co
     issuer: origin, authorization_endpoint: `${origin}/api/oauth/authorize`,
     token_endpoint: `${origin}/api/oauth/token`, registration_endpoint: `${origin}/api/oauth/register`,
     response_types_supported: ['code'], grant_types_supported: ['authorization_code'],
-    token_endpoint_auth_methods_supported: ['none'], code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], code_challenge_methods_supported: ['S256'],
     scopes_supported: ['memties:read', 'memties:write'],
   }
   app.get('/.well-known/oauth-authorization-server', async () => metadata)
@@ -64,10 +65,20 @@ export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Co
   }
   app.post('/api/oauth/register', limits, async (request, reply) => {
     const parsed = registration.safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'invalid_client_metadata' })
+    if (!parsed.success) {
+      // Log field names only; registration payloads can contain credentials.
+      const fields = [...new Set(parsed.error.issues.map(issue => issue.path.join('.')))].join(', ')
+      request.log.warn({ fields }, 'OAuth client registration rejected')
+      return reply.code(400).send({ error: 'invalid_client_metadata', error_description: `Invalid registration fields: ${fields}` })
+    }
     const client_id = secret()
-    await save(`client:${client_id}`, parsed.data, 365 * 86400)
-    return reply.code(201).send({ ...parsed.data, client_id, client_id_issued_at: Math.floor(Date.now() / 1000) })
+    const client_secret = parsed.data.token_endpoint_auth_method === 'none' ? undefined : secret()
+    // Explicitly negotiate only the grant implemented here; no refresh token is issued.
+    const registered = { ...parsed.data, grant_types: ['authorization_code'] as const }
+    await save(`client:${client_id}`, { ...registered, ...(client_secret ? { secretHash: digest(client_secret) } : {}) }, 365 * 86400)
+    return reply.code(201).send({ ...registered, client_id, client_id_issued_at: Math.floor(Date.now() / 1000),
+      ...(client_secret ? { client_secret, client_secret_expires_at: 0 } : {}),
+    })
   })
   const validate = async (input: z.infer<typeof authorization>) => {
     const client = await get<Client>(`client:${input.client_id}`)
@@ -105,11 +116,36 @@ export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Co
   })
   app.post('/api/oauth/token', limits, async (request, reply) => {
     reply.header('Pragma', 'no-cache')
+    const credentials = z.object({ client_id: z.string().max(100).optional(), client_secret: z.string().max(1024).optional() }).parse(request.body)
+    let clientId = credentials.client_id
+    let clientSecret = credentials.client_secret
+    let method = clientSecret === undefined ? 'none' : 'client_secret_post'
+    const header = request.headers.authorization
+    if (header !== undefined) {
+      if (!/^Basic /i.test(header) || credentials.client_secret !== undefined) return reply.code(401).header('WWW-Authenticate', 'Basic realm="Memties OAuth"').send({ error: 'invalid_client' })
+      try {
+        const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
+        const separator = decoded.indexOf(':')
+        if (separator < 0) throw new Error('Invalid Basic credentials')
+        const decode = (value: string) => decodeURIComponent(value.replace(/\+/g, ' '))
+        clientId = decode(decoded.slice(0, separator))
+        clientSecret = decode(decoded.slice(separator + 1))
+        method = 'client_secret_basic'
+      } catch { return reply.code(401).header('WWW-Authenticate', 'Basic realm="Memties OAuth"').send({ error: 'invalid_client' }) }
+      if (credentials.client_id !== undefined && credentials.client_id !== clientId) return reply.code(401).send({ error: 'invalid_client' })
+    }
+    const client = clientId && clientId.length <= 100 ? await get<Client>(`client:${clientId}`) : undefined
+    if (!client || client.token_endpoint_auth_method !== method || (method !== 'none' && (
+      !client.secretHash || clientSecret === undefined || !timingSafeEqual(Buffer.from(digest(clientSecret)), Buffer.from(client.secretHash))
+    ))) {
+      if (method === 'client_secret_basic') reply.header('WWW-Authenticate', 'Basic realm="Memties OAuth"')
+      return reply.code(401).send({ error: 'invalid_client' })
+    }
     const input = z.object({
       grant_type: z.literal('authorization_code'), code: z.string().max(200),
       client_id: z.string().max(100), redirect_uri: redirectUri,
       code_verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/), resource: z.string().max(2048).optional(),
-    }).parse(request.body)
+    }).parse({ ...z.record(z.string(), z.unknown()).parse(request.body), client_id: clientId })
     const id = `code:${digest(input.code)}`
     const grant = await db.transaction(async tx => {
       const [row] = await tx.select().from(oauthRecords).where(and(eq(oauthRecords.id, id), gt(oauthRecords.expiresAt, new Date()))).for('update')
@@ -120,8 +156,6 @@ export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Co
       return value
     })
     if (!grant) return reply.code(400).send({ error: 'invalid_grant' })
-    const client = await get<Client>(`client:${grant.client_id}`)
-    if (!client) return reply.code(400).send({ error: 'invalid_client' })
     const issued = await tokens.create(grant.userId, { name: `OAuth: ${client.client_name}`, access: grant.scope.split(' ').includes('memties:write') ? 'write' : 'read', days: 30 })
     return { access_token: issued.token, token_type: 'Bearer', expires_in: 30 * 86400, scope: grant.scope }
   })
