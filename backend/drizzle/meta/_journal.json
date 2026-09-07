@@ -22,6 +22,13 @@
       "when": 1788658293625,
       "tag": "0002_first_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788787031023,
+      "tag": "0003_third_dracula",
+      "breakpoints": true
     }
   ]
 }

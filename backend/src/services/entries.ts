@@ -70,7 +70,7 @@ export const createEntryService = (db: ServiceDatabase) => {
         await validatePeople(current, personIds, tx)
         await tx.insert(entries).values({ id, ...fields, creatorId: userId, source })
         if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
-        if (reminder) await tx.insert(reminders).values({ id: randomUUID(), entryId: id, creatorId: userId, ...reminder, notifyByEmail: reminder.notifyByEmail ? 'yes' : 'no' })
+        if (reminder) await tx.insert(reminders).values({ id: randomUUID(), entryId: id, creatorId: userId, ...reminder, notifyByPush: reminder.notifyByPush ? 'yes' : 'no', notifyByEmail: reminder.notifyByEmail ? 'yes' : 'no' })
       })
       return get(userId, id)
     },

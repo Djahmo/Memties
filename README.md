@@ -18,6 +18,8 @@ LDAP and SAML are optional and disabled without configuration. They use the same
 
 ## Run locally
 
+Logs use compact text by default, with startup messages and HTTP warnings/errors. Set `LOG_LEVEL=debug` in `backend/.env` to also log successful requests (one line per completed request), or `LOG_FORMAT=json` for a structured log collector. Error stack traces remain available. With systemd, use `journalctl -u <service> -f -o cat` for live logs, or add `--no-pager` when inspecting history to avoid pager truncation.
+
 Requires Node.js 24+, pnpm 11, and a running MySQL 8.4 database with a dedicated database/user. The database user needs schema migration privileges.
 
 ```powershell
@@ -97,3 +99,11 @@ docker compose up -d app
 ```
 
 Place your HTTPS reverse proxy in front of `127.0.0.1:3001`, preserving the Origin header. Mount any SAML key/certificate files read-only using a compose override. Back up the `mysql_data` volume; migrations must be applied before starting each updated application. No email or identity provider is configured automatically.
+
+### Push notifications for reminders
+
+Run `pnpm --dir backend db:migrate`. In `backend/`, generate a VAPID key pair with `pnpm exec web-push generate-vapid-keys --json`, then set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` contact or HTTPS URL) in the backend environment. Keep the private key secret and retain the same pair across deployments. Restart the backend after configuration.
+
+In App settings, enable push on each device and accept the browser prompt. Select push when creating or editing a reminder. HTTPS is required (localhost works for development). On iOS/iPadOS 16.4+, install Memties on the Home Screen and launch it there before enabling notifications. Signing out disables push on that device; enable it again after signing in. Email and push can be used independently or together.
+
+The backend checks every minute, sends only to the creator's registered devices while they retain access, and retries temporary failures after five minutes. Notifications contain generic text only. Expired subscriptions are removed. Retry after partial delivery or a process crash may deliver duplicates; notification tags replace the same reminder where supported. Keep the backend running. OS/browser settings can delay or prevent delivery; force-quitting a browser may prevent push. Push provider endpoints are restricted to Google, Mozilla, Apple and Windows services.

@@ -2,12 +2,17 @@ import { z } from 'zod'
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  LOG_FORMAT: z.enum(['pretty', 'json']).optional(),
+  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).optional(),
   HOST: z.string().default('127.0.0.1'),
   SERVE_FRONTEND: z.enum(['true', 'false']).optional(),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   APP_ORIGIN: z.url().refine(value => new URL(value).origin === value, 'Use an origin without a trailing slash or path'),
   DATABASE_URL: z.string().startsWith('mysql://'),
   ALLOW_REGISTRATION: z.enum(['true', 'false']).default('true').transform(value => value === 'true'),
+  VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{87}$/).optional(),
+  VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/).+/).optional(),
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   SMTP_SECURE: z.enum(['true', 'false']).optional(),
@@ -34,6 +39,7 @@ const schema = z.object({
     context.addIssue({ code: 'custom', path: ['APP_ORIGIN'], message: 'HTTPS is required in production' })
   }
   for (const [enabled, required] of [
+    [value.VAPID_PUBLIC_KEY || value.VAPID_PRIVATE_KEY || value.VAPID_SUBJECT, ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']],
     [value.SMTP_HOST, ['SMTP_FROM']],
     [value.LDAP_URL, ['LDAP_BIND_DN', 'LDAP_BIND_PASSWORD', 'LDAP_BASE_DN']],
     [value.SAML_ENTRY_POINT, ['SAML_IDP_ISSUER', 'SAML_IDP_CERT_FILE', 'SAML_SP_KEY_FILE', 'SAML_SP_CERT_FILE']],

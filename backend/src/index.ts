@@ -1,3 +1,4 @@
+import { createPushService, startReminderPush } from './services/push.js'
 import { readConfig } from './config.js'
 import { connectDatabase } from './db/index.js'
 import { createAuthService } from './auth/service.js'
@@ -18,6 +19,7 @@ const config = readConfig()
 const { db, pool } = connectDatabase(config.DATABASE_URL)
 const auth = createAuthService(db)
 const app = await createApp(config, {
+  push: createPushService(db),
   contacts: createContactImportService(db),
   transfer: createTransferService(db),
   auth, providers: await createProviderService(db, auth, config), tokens: createTokenService(db), reminders: createReminderService(db),
@@ -25,6 +27,7 @@ const app = await createApp(config, {
 })
 app.addHook('onClose', async () => { await pool.end() })
 startReminderMail(app, db, config)
+startReminderPush(app, db, config)
 const shutdown = async () => { await app.close() }
 process.once('SIGINT', shutdown)
 process.once('SIGTERM', shutdown)

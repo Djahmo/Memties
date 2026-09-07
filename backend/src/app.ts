@@ -1,4 +1,6 @@
-import Fastify from 'fastify'
+import type { createPushService } from './services/push.js'
+import { pushRoutes } from './routes/push.js'
+import Fastify, { LogController } from 'fastify'
 import fastifyStatic from '@fastify/static'
 import { fileURLToPath } from 'node:url'
 import cookie from '@fastify/cookie'
@@ -32,6 +34,7 @@ declare module 'fastify' {
 }
 
 type Services = {
+  push?: ReturnType<typeof createPushService>
   contacts?: ReturnType<typeof createContactImportService>
   transfer?: ReturnType<typeof createTransferService>
   auth: ReturnType<typeof createAuthService>; groups: ReturnType<typeof createGroupService>; content?: ContentServices; sharing?: ReturnType<typeof createSharingService>
@@ -39,7 +42,26 @@ type Services = {
 }
 
 export const createApp = async (config: Config, services: Services) => {
-  const app = Fastify({ logger: config.NODE_ENV !== 'test' ? { redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'] } : false, bodyLimit: 128 * 1024 })
+  const app = Fastify({
+    logger: config.NODE_ENV !== 'test' ? {
+      level: config.LOG_LEVEL ?? 'info',
+      redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      ...(config.LOG_FORMAT !== 'json' ? {
+        transport: {
+          target: 'pino-pretty',
+          options: { colorize: false, singleLine: true, translateTime: 'SYS:HH:MM:ss', ignore: 'pid,hostname,reqId' },
+        },
+      } : {}),
+    } : false,
+    logController: new LogController({ disableRequestLogging: true }),
+    bodyLimit: 128 * 1024,
+  })
+  app.addHook('onResponse', async (request, reply) => {
+    const level = reply.statusCode >= 500 ? 'error' : reply.statusCode >= 400 ? 'warn' : 'debug'
+    // Callback query strings can contain credentials: log route templates only.
+    const route = request.routeOptions.url ?? '(unmatched route)'
+    request.log[level](`${request.method} ${route} → ${reply.statusCode} (${reply.elapsedTime.toFixed(1)} ms)`)
+  })
   await app.register(cookie)
   await app.register(rateLimit, { global: false })
   app.decorateRequest('user', null)
@@ -63,13 +85,14 @@ export const createApp = async (config: Config, services: Services) => {
     return reply.code(500).send({ message: 'Something went wrong. Please try again.' })
   })
   app.get('/api/health', async () => ({ status: 'ok' }))
+  if (services.push) await app.register(async scope => pushRoutes(scope, services.push!, config))
   if (services.contacts) await app.register(async scope => importRoutes(scope, services.contacts!))
   if (services.transfer) await app.register(async scope => transferRoutes(scope, services.transfer!))
   await app.register(async scope => authRoutes(scope, services.auth, config))
   await app.register(async scope => groupRoutes(scope, services.groups))
   if (services.content) await app.register(async scope => contentRoutes(scope, services.content!))
   if (services.sharing) await app.register(async scope => sharingRoutes(scope, services.sharing!))
-  if (services.reminders) await app.register(async scope => reminderRoutes(scope, services.reminders!, !!config.SMTP_HOST, new URL(config.APP_ORIGIN).host))
+  if (services.reminders) await app.register(async scope => reminderRoutes(scope, services.reminders!, !!config.SMTP_HOST, new URL(config.APP_ORIGIN).host, !!config.VAPID_PUBLIC_KEY))
   if (services.tokens) await app.register(async scope => tokenRoutes(scope, services.tokens!))
   if (services.providers) await app.register(async scope => providerRoutes(scope, services.providers!, services.auth, config))
   if (services.content && services.tokens && services.reminders) {

@@ -84,6 +84,9 @@ export const reminders = mysqlTable('reminders', {
   status: mysqlEnum('status', ['pending', 'completed']).notNull().default('pending'),
   creatorId: varchar('creator_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'restrict' }),
   notifyByEmail: mysqlEnum('notify_by_email', ['yes', 'no']).notNull().default('no'),
+  notifyByPush: mysqlEnum('notify_by_push', ['yes', 'no']).notNull().default('no'),
+  pushNotifiedAt: datetime('push_notified_at', { mode: 'date', fsp: 3 }),
+  pushAttemptAt: datetime('push_attempt_at', { mode: 'date', fsp: 3 }),
   language: mysqlEnum('language', ['fr', 'en']).notNull().default('en'),
   notifiedAt: datetime('notified_at', { mode: 'date', fsp: 3 }),
   notificationAttemptAt: datetime('notification_attempt_at', { mode: 'date', fsp: 3 }),
@@ -106,3 +109,11 @@ export const samlRequests = mysqlTable('saml_requests', {
   value: text('value').notNull(),
   createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
 })
+
+export const pushSubscriptions = mysqlTable('push_subscriptions', {
+  endpointHash: varchar('endpoint_hash', { length: 64 }).primaryKey(),
+  userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull(),
+  p256dh: varchar('p256dh', { length: 100 }).notNull(),
+  auth: varchar('auth', { length: 30 }).notNull(),
+}, table => [index('push_user').on(table.userId)])

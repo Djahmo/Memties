@@ -29,6 +29,7 @@ export const createReminderService = (db: ServiceDatabase) => ({
       items: rows.slice(0, input.limit).map(({ reminder, ...entry }) => ({
         id: reminder.id, title: reminder.title, entryId: reminder.entryId, dueAt: reminder.dueAt,
         status: reminder.status, creatorId: reminder.creatorId, createdAt: reminder.createdAt, updatedAt: reminder.updatedAt,
+        notifyByPush: reminder.creatorId === userId && reminder.notifyByPush === 'yes',
         notifyByEmail: reminder.creatorId === userId && reminder.notifyByEmail === 'yes',
         canEdit: access.permissions.get(entry.groupId)?.role !== 'viewer', canNotify: reminder.creatorId === userId, ...entry,
       })),
@@ -43,7 +44,7 @@ export const createReminderService = (db: ServiceDatabase) => ({
       const [entry] = await tx.select().from(entries).where(eq(entries.id, input.entryId)).for('update')
       if (!entry || !access.permissions.has(entry.groupId)) throw new ServiceError(404, 'Entry not found.')
       requireGroup(access, entry.groupId, true)
-      await tx.insert(reminders).values({ ...input, id, creatorId: userId, notifyByEmail: input.notifyByEmail ? 'yes' : 'no' })
+      await tx.insert(reminders).values({ ...input, id, creatorId: userId, notifyByPush: input.notifyByPush ? 'yes' : 'no', notifyByEmail: input.notifyByEmail ? 'yes' : 'no' })
     })
     return { id }
   },
@@ -55,11 +56,13 @@ export const createReminderService = (db: ServiceDatabase) => ({
         .innerJoin(entries, eq(entries.id, reminders.entryId)).where(eq(reminders.id, id)).for('update')
       if (!row || !access.permissions.has(row.groupId)) throw new ServiceError(404, 'Reminder not found.')
       requireGroup(access, row.groupId, true)
-      if ((input.notifyByEmail !== undefined || input.language !== undefined) && row.reminder.creatorId !== userId) {
-        throw new ServiceError(403, 'Only the creator can change email notifications.')
+      if ((input.notifyByPush !== undefined || input.notifyByEmail !== undefined || input.language !== undefined) && row.reminder.creatorId !== userId) {
+        throw new ServiceError(403, 'Only the creator can change notifications.')
       }
-      const { notifyByEmail, ...fields } = input
+      const { notifyByEmail, notifyByPush, ...fields } = input
       await tx.update(reminders).set({ ...fields, updatedAt: new Date(),
+        ...(notifyByPush !== undefined ? { notifyByPush: notifyByPush ? 'yes' as const : 'no' as const } : {}),
+        ...(input.dueAt || input.status === 'pending' || notifyByPush === true ? { pushNotifiedAt: null, pushAttemptAt: null } : {}),
         ...(notifyByEmail !== undefined ? { notifyByEmail: notifyByEmail ? 'yes' as const : 'no' as const } : {}),
         ...(input.dueAt || input.status === 'pending' || notifyByEmail === true ? { notifiedAt: null, notificationAttemptAt: null } : {}),
       }).where(eq(reminders.id, id))

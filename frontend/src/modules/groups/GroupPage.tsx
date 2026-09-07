@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Bell } from 'lucide-react'
+import { disablePush } from '../reminders/push'
 import { ReminderList } from '../reminders/ReminderList'
 import { useEffect, useState } from 'react'
 import { ChevronRight, FilePlus2, FileText, Folder, FolderPlus, LockKeyhole, LogOut, Network, Plus, Settings, Share2, UserPlus, UsersRound } from 'lucide-react'
@@ -49,7 +50,7 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
   }, [attempt])
   const logout = async () => {
     setSigningOut(true)
-    try { await api<{ success: boolean }>('/auth/logout', { method: 'POST' }); onLogout() } catch (error) { setError(errorMessage(error)); setSigningOut(false) }
+    try { await disablePush(); await api<{ success: boolean }>('/auth/logout', { method: 'POST' }); onLogout() } catch (error) { setError(errorMessage(error)); setSigningOut(false) }
   }
   const selectGroup = (id: string) => { setSelectedId(id); setForm(null); setView({ kind: 'group' }); setNotice('') }
   const saveGroup = (group: Group) => {

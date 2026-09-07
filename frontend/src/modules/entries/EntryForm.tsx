@@ -19,7 +19,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
 }) => {
   const { t, i18n } = useTranslation()
   const [addReminder, setAddReminder] = useState(false)
-  const { data: reminderConfig } = useApi<{ mailEnabled: boolean }>('/reminders/config')
+  const { data: reminderConfig } = useApi<{ mailEnabled: boolean; pushEnabled: boolean }>('/reminders/config')
   const [destination, setDestination] = useState(existing?.groupId ?? groupId)
   const [selected, setSelected] = useState<SelectedPerson[]>(existing?.people ?? (person ? [person] : []))
   const [error, setError] = useState('')
@@ -34,7 +34,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       onSaved(await api<Entry>(existing ? `/entries/${existing.id}` : '/entries', { method: existing ? 'PATCH' : 'POST', body: {
         title: String(form.get('title')).trim(), body: String(form.get('body')),
         occurredAt: new Date(String(form.get('occurredAt'))).toISOString(), groupId: destination, personIds: selected.map(person => person.id),
-        ...(!existing && addReminder ? { reminder: { title: String(form.get('reminderTitle')).trim(), dueAt: new Date(String(form.get('reminderDue'))).toISOString(), notifyByEmail: form.get('reminderEmail') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } } : {}),
+        ...(!existing && addReminder ? { reminder: { title: String(form.get('reminderTitle')).trim(), dueAt: new Date(String(form.get('reminderDue'))).toISOString(), notifyByPush: form.get('reminderPush') === 'on', notifyByEmail: form.get('reminderEmail') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } } : {}),
       } }))
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
   }
@@ -49,6 +49,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       {!existing && <div className="rounded-lg bg-soft p-4 space-y-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={addReminder} onChange={event => setAddReminder(event.target.checked)} />{t('Add reminder')}</label>{addReminder && <>
         <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" maxLength={240} required /></label>
         <label className="field-label">{t('Due date')}<input className="input-field" type="datetime-local" name="reminderDue" required /></label>
+        {reminderConfig?.pushEnabled && <><label className="flex gap-2 items-center text-sm"><input type="checkbox" name="reminderPush" />{t('Push me when due')}</label><p className="muted text-xs">{t('Enable notifications on your devices in App settings.')}</p></>}
         {reminderConfig?.mailEnabled && <label className="flex gap-2 items-center text-sm"><input type="checkbox" name="reminderEmail" />{t('Email me when due')}</label>}
       </>}</div>}
       <p className="muted text-xs">{t("Linked contact profiles keep their own group permissions.")}</p>

@@ -11,7 +11,7 @@ import { ServiceError } from './errors.js'
 const groupRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(120), description: z.string().max(2000), parentId: z.uuid().nullable() }).strict()
 const personRecord = personInput.extend({ id: z.uuid() })
 const entryRecord = entryInput.omit({ reminder: true }).extend({ id: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), source: z.enum(['web', 'mcp']) })
-const reminderRecord = reminderInput.omit({ notifyByEmail: true, language: true }).extend({ id: z.uuid(), dueAt: z.iso.datetime({ offset: true }), status: z.enum(['pending', 'completed']) })
+const reminderRecord = reminderInput.omit({ notifyByPush: true, notifyByEmail: true, language: true }).extend({ id: z.uuid(), dueAt: z.iso.datetime({ offset: true }), status: z.enum(['pending', 'completed']) })
 const tagRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(80), groupIds: z.array(z.uuid()).max(10000), personIds: z.array(z.uuid()).max(10000) }).strict()
 export const transferInput = z.object({
   format: z.literal('memties'), version: z.literal(1), exportedAt: z.iso.datetime({ offset: true }),

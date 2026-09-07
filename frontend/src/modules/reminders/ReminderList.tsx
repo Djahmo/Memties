@@ -9,7 +9,7 @@ import type { Page } from '../../types/api'
 
 type Reminder = {
   id: string; entryId: string; entryTitle: string; title: string; dueAt: string; status: 'pending' | 'completed'
-  canEdit: boolean; canNotify: boolean; notifyByEmail: boolean
+  canEdit: boolean; canNotify: boolean; notifyByPush: boolean; notifyByEmail: boolean
 }
 const localTime = (value: string) => {
   const date = new Date(value)
@@ -33,7 +33,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
   if (personId) query.set('personId', personId)
   if (entryId) query.set('entryId', entryId)
   const { data, loading, error: loadError, reload } = useApi<Page<Reminder>>(`/reminders?${query}`)
-  const { data: config } = useApi<{ mailEnabled: boolean }>('/reminders/config')
+  const { data: config } = useApi<{ mailEnabled: boolean; pushEnabled: boolean }>('/reminders/config')
   const changeStatus = async (reminder: Reminder) => {
     setBusy(true); setError('')
     try {
@@ -50,6 +50,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
       await api(editing === 'new' ? '/reminders' : `/reminders/${editing.id}`, { method: editing === 'new' ? 'POST' : 'PATCH', body: {
         title: String(form.get('title')).trim(), dueAt: new Date(String(form.get('dueAt'))).toISOString(),
         ...(editing === 'new' ? { entryId } : {}),
+        ...((editing === 'new' || editing.canNotify) && config?.pushEnabled ? { notifyByPush: form.get('push') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } : {}),
         ...((editing === 'new' || editing.canNotify) && config?.mailEnabled ? { notifyByEmail: form.get('notify') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } : {}),
       } })
       setEditing(null); reload()
@@ -68,7 +69,9 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
       <label className="field-label">{t('Reminder title')}<input className="input-field" autoFocus name="title" maxLength={240} required defaultValue={current?.title} /></label>
       <label className="field-label">{t('Due date')}<input className="input-field" type="datetime-local" name="dueAt" required defaultValue={current ? localTime(current.dueAt) : ''} /></label>
       {(editing === 'new' || current?.canNotify) && config?.mailEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="notify" className="mt-1" defaultChecked={current?.notifyByEmail} />{t('Email me when due')}</label>}
-      <p className="muted text-xs">{t('Reminders follow the visibility of their entry. Email notifications go only to their creator.')}</p>
+      {(editing === 'new' || current?.canNotify) && config?.pushEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="push" className="mt-1" defaultChecked={current?.notifyByPush} />{t('Push me when due')}</label>}
+      {config?.pushEnabled && <p className="muted text-xs">{t('Enable notifications on your devices in App settings.')}</p>}
+      <p className="muted text-xs">{t('Reminders follow the visibility of their entry. Notifications go only to their creator.')}</p>
       <div className="flex gap-2"><button className="primary" type="submit">{busy ? t('Saving…') : t('Save changes')}</button><button className="secondary" type="button" onClick={() => setEditing(null)}>{t('Cancel')}</button></div>
     </fieldset></form>}
     {loading && <p role="status" className="muted text-sm">{t('Loading reminders…')}</p>}

@@ -6,6 +6,7 @@ const ids = z.array(z.uuid()).max(200)
 export const reminderFields = z.object({
   title: z.string().trim().min(1).max(240),
   dueAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).refine(value => value.getUTCFullYear() >= 1000 && value.getUTCFullYear() <= 9999, 'Invalid reminder date'),
+  notifyByPush: z.boolean().default(false),
   notifyByEmail: z.boolean().default(false),
   language: z.enum(['fr', 'en']).default('en'),
 }).strict()

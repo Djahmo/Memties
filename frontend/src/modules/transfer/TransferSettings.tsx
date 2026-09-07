@@ -31,7 +31,7 @@ export const TransferSettings = () => {
     <a className="secondary inline-flex" href="/api/transfer/export">{t('Export Memties JSON')}</a>
     <label className="field-label">{t('Import Memties JSON')}<input type="file" accept=".json,application/json" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) void load(file); event.target.value = '' }} /></label>
     {preview && <>
-      <p className="text-sm">{t('Import creates new copies in a new folder under Personal. Existing data is never merged or overwritten. Sharing, authors and email notifications are not transferred. Reimporting creates another copy.')}</p>
+      <p className="text-sm">{t('Import creates new copies in a new folder under Personal. Existing data is never merged or overwritten. Sharing, authors and notifications are not transferred. Reimporting creates another copy.')}</p>
       <div className="max-h-64 overflow-auto">{(['groups', 'people', 'entries', 'reminders', 'tags'] as const).map(kind => <details key={kind}><summary className="cursor-pointer">{t(kind)} ({preview.counts[kind]})</summary><ul className="pl-4 text-sm">{preview[kind].map((name, index) => <li className="break-words" key={index}>{name}</li>)}</ul></details>)}</div>
       <button className="primary" disabled={busy} onClick={() => { void commit() }}>{t('Confirm import as new private copies')}</button>
       <button className="secondary ml-2" disabled={busy} onClick={() => { setPreview(null); setData(null) }}>{t('Cancel')}</button>
