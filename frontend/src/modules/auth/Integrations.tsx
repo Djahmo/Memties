@@ -30,14 +30,24 @@ export const TokenSettings = () => {
   }
   return <section className="border-t border-line mt-6 pt-5 space-y-4">
     <h3 className="font-semibold flex items-center gap-2"><KeyRound size={18} />{t('MCP access')}</h3>
-    <p className="text-sm muted">{t('Connect an assistant using Streamable HTTP and a Bearer token. Tokens can access your visible data, including Personal. Keep them secret.')}</p>
+    <h4 className="font-medium">{t('Connect ChatGPT with OAuth')}</h4>
+    <p className="text-sm muted">{t('In ChatGPT developer mode, add a plugin with this server URL and choose OAuth. Leave the optional client ID and secret empty, then sign in to Memties and approve access.')}</p>
     <label className="field-label">{t('Server URL')}<input className="input-field text-xs" readOnly value={`${window.location.origin}/api/mcp`} onFocus={event => event.target.select()} /></label>
+    <p className="text-sm muted">{t('OAuth access lasts 30 days. Reconnect after expiry, or revoke access below at any time.')}</p>
+    <details className="border border-line rounded-lg p-3" onToggle={event => { if (!event.currentTarget.open) setSecret('') }}>
+    <summary className="cursor-pointer font-medium">{t('Advanced / other clients')}</summary>
+    <div className="space-y-3 mt-3">
+    <p className="text-sm muted">{t('For scripts and clients that accept a personal token, use Streamable HTTP with Bearer authentication. Tokens can access your visible data, including Personal. Keep them secret.')}</p>
     <form onSubmit={create}><fieldset disabled={busy} className="space-y-3">
       <label className="field-label">{t('Token name')}<input name="name" className="input-field" maxLength={120} required /></label>
       <div className="grid grid-cols-2 gap-3"><label className="field-label">{t('Access')}<select name="access" className="input-field"><option value="read">{t('Read only')}</option><option value="write">{t('Read and write')}</option></select></label><label className="field-label">{t('Expires in days')}<input name="days" className="input-field" type="number" min={1} max={365} defaultValue={90} required /></label></div>
       <button type="submit" className="secondary">{t('Create token')}</button>
     </fieldset></form>
     {secret && <div className="bg-warning border border-warningline rounded-lg p-3 space-y-2"><p className="text-sm">{t('Copy this token now. It will only be shown once.')}</p><input className="input-field text-xs" aria-label={t('New token')} readOnly value={secret} onFocus={event => event.target.select()} /><button className="secondary text-sm" onClick={() => setSecret('')}>{t('Hide token')}</button></div>}
+    </div>
+    </details>
+    <h4 className="font-medium">{t('Connections and tokens')}</h4>
+    <p className="text-sm muted">{t('Manage OAuth connections and personal tokens here. Revoking access disconnects the associated client.')}</p>
     {(error || loadError) && <p className="error" role="alert">{t(error || loadError || '')}{loadError && <button className="underline ml-2" onClick={reload}>{t('Retry')}</button>}</p>}
     {data?.map(token => <div key={token.id} className="border border-line rounded-lg p-3 space-y-2"><div className="flex justify-between items-start gap-2"><div className="min-w-0"><p className="font-medium break-words">{token.name}</p><p className="text-xs muted">{t(token.access === 'read' ? 'Read only' : 'Read and write')} · {new Date(token.expiresAt).toLocaleDateString(i18n.language)}</p></div><button className="secondary p-2" disabled={busy} aria-label={t('Revoke token')} onClick={() => setRevokeId(token.id)}><Trash2 size={16} /></button></div>{revokeId === token.id && <div className="flex gap-2"><button className="secondary text-errorink text-sm" disabled={busy} onClick={() => { void revoke(token.id) }}>{t('Confirm revocation')}</button><button className="secondary text-sm" disabled={busy} onClick={() => setRevokeId(null)}>{t('Cancel')}</button></div>}</div>)}
   </section>

@@ -10,7 +10,7 @@ The whole interface is available in English and French through i18next/react-i18
 
 Reminders are attached to entries and inherit their current visibility. They can be created with a new entry or from its history, edited, completed and reopened. Group views include recursive reminders; contact views include reminders on their accessible entries. Optional email notifications go only to the creator, provided they still have access. Emails contain a generic sign-in link, never contact names, titles or note content.
 
-MCP is available at `/api/mcp` over stateless Streamable HTTP using the official SDK. In App settings, create a named, expiring token with read-only or read/write access. Copy it once and configure your MCP client with this endpoint and an `Authorization: Bearer <token>` header. Tokens are hashed in the database, can be revoked immediately, and never grant more rights than their user. They include the user's Personal data: only give them to a trusted assistant. Read/write tokens permit content creation and reminder completion, not group permission administration. Clients requiring OAuth discovery rather than configurable Bearer headers are not supported in this version.
+MCP is available at `/api/mcp` over stateless Streamable HTTP using the official SDK. In App settings, create a named, expiring token with read-only or read/write access. Copy it once and configure your MCP client with this endpoint and an `Authorization: Bearer <token>` header. Tokens are hashed in the database, can be revoked immediately, and never grant more rights than their user. They include the user's Personal data: only give them to a trusted assistant. Read/write tokens permit content creation and reminder completion, not group permission administration. ChatGPT developer-mode connections can use OAuth with automatic client registration (leave client ID and secret empty). Authorization uses the existing Memties login and explicit consent, with PKCE S256 and single-use codes. OAuth access lasts 30 days; reconnect after expiry. Revoke access in App settings under tokens. The default scope is memties:read; clients can request memties:write for write access.
 
 Tools: `list_groups`, `search_people`, `get_person`, `create_person`, `get_entry`, `search_entries`, `create_entry`, `create_reminder`, `list_reminders`, `complete_reminder`. Lists support pagination. Entry creation requires an explicit group ID and records `source=mcp`; HTTP and MCP call the same services. Tool instructions require asking the user when the destination creates a meaningful privacy ambiguity.
 
@@ -75,7 +75,7 @@ Build with `pnpm build`, serve `frontend/dist` and proxy `/api` to the backend o
 
 Sharing grants access to an existing account without sending email. Group settings allow moving a group and its descendants, with an explicit visibility acknowledgement, and deleting empty groups only. Groups cannot cross the Personal vault boundary. Detaching a normal subgroup to the root grants its moving user direct ownership; existing direct memberships remain. Contacts, entries and subgroups block deletion.
 
-Authentication rate limiting is in-process; behind a proxy, attempts share its IP limit. Authorization currently loads the group tree, suitable for V1 but requiring optimization before large deployments. Local password recovery, email verification, SAML single logout, OAuth for MCP, calendar synchronization and billing are not implemented. Signing out revokes the current Memties session; it does not sign out of the identity provider. Existing external-provider sessions remain valid until logout or expiry, even if the external account is subsequently disabled.
+Authentication rate limiting is in-process; behind a proxy, attempts share its IP limit. Authorization currently loads the group tree, suitable for V1 but requiring optimization before large deployments. Local password recovery, email verification, SAML single logout, calendar synchronization and billing are not implemented. Signing out revokes the current Memties session; it does not sign out of the identity provider. Existing external-provider sessions remain valid until logout or expiry, even if the external account is subsequently disabled.
 
 ### SMTP and reminders
 
@@ -107,3 +107,19 @@ Run `pnpm --dir backend db:migrate`. In `backend/`, generate a VAPID key pair wi
 In App settings, enable push on each device and accept the browser prompt. Select push when creating or editing a reminder. HTTPS is required (localhost works for development). On iOS/iPadOS 16.4+, install Memties on the Home Screen and launch it there before enabling notifications. Signing out disables push on that device; enable it again after signing in. Email and push can be used independently or together.
 
 The backend checks every minute, sends only to the creator's registered devices while they retain access, and retries temporary failures after five minutes. Notifications contain generic text only. Expired subscriptions are removed. Retry after partial delivery or a process crash may deliver duplicates; notification tags replace the same reminder where supported. Keep the backend running. OS/browser settings can delay or prevent delivery; force-quitting a browser may prevent push. Push provider endpoints are restricted to Google, Mozilla, Apple and Windows services.
+
+### OAuth deployment
+
+Apply the new database migration with `pnpm --dir backend db:migrate`, deploy the backend and frontend, and restart the service. Configure ChatGPT with OAuth and `https://<your-host>/api/mcp`; leave optional client credentials empty.
+
+The reverse proxy must forward both `/api/` and `/.well-known/` to the backend, preserving their paths. In particular, `/.well-known/oauth-authorization-server` must return backend JSON rather than frontend HTML. For nginx on the current port:
+
+```nginx
+location ^~ /.well-known/ {
+    proxy_pass http://127.0.0.1:4010;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+`APP_ORIGIN` must match the public HTTPS origin. Existing Bearer tokens remain supported.

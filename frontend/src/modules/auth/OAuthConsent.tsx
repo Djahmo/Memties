@@ -32,7 +32,7 @@ export const OAuthConsent = ({ user }: { user: User }) => {
         <p><strong>{client.name}</strong> demande à accéder à vos données Memties.</p>
         <p>Destination : {client.destination}</p>
         <p>{client.scope.split(' ').includes('memties:write') ? 'Lecture et modification de vos contacts, souvenirs et rappels.' : 'Lecture de vos contacts, souvenirs et rappels.'} Cela inclut votre espace Personal et les groupes auxquels vous avez accès.</p>
-        <p>Accès valable 30 jours, révocable dans les paramètres Memties, rubrique tokens.</p>
+        <p>Accès valable 30 jours, révocable dans les paramètres Memties, rubrique Accès MCP → Connexions et jetons.</p>
         <div className="flex gap-3">
           <button className="primary" disabled={busy} onClick={() => void decide(true)}>Autoriser</button>
           <button className="secondary" disabled={busy} onClick={() => void decide(false)}>Refuser</button>
