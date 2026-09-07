@@ -19,6 +19,7 @@ const config = readConfig()
 const { db, pool } = connectDatabase(config.DATABASE_URL)
 const auth = createAuthService(db)
 const app = await createApp(config, {
+  db,
   push: createPushService(db),
   contacts: createContactImportService(db),
   transfer: createTransferService(db),

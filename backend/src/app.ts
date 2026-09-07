@@ -1,6 +1,8 @@
 import type { createPushService } from './services/push.js'
 import { pushRoutes } from './routes/push.js'
 import Fastify, { LogController } from 'fastify'
+import { oauthRoutes } from './routes/oauth.js'
+import type { Database } from './db/index.js'
 import fastifyStatic from '@fastify/static'
 import { fileURLToPath } from 'node:url'
 import cookie from '@fastify/cookie'
@@ -34,6 +36,7 @@ declare module 'fastify' {
 }
 
 type Services = {
+  db?: Database
   push?: ReturnType<typeof createPushService>
   contacts?: ReturnType<typeof createContactImportService>
   transfer?: ReturnType<typeof createTransferService>
@@ -69,11 +72,12 @@ export const createApp = async (config: Config, services: Services) => {
     reply.header('Cache-Control', 'no-store')
     reply.header('X-Content-Type-Options', 'nosniff')
     const isMcp = request.routeOptions.url === '/api/mcp'
+    const isOAuthProtocol = ['/api/oauth/token', '/api/oauth/register'].includes(request.routeOptions.url ?? '')
     const isSamlCallback = !!config.SAML_ENTRY_POINT && request.routeOptions.url === '/api/auth/saml/callback' && request.method === 'POST'
-    if (!isMcp && !isSamlCallback && !['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.origin !== config.APP_ORIGIN) {
+    if (!isMcp && !isOAuthProtocol && !isSamlCallback && !['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.origin !== config.APP_ORIGIN) {
       throw new ServiceError(403, 'Request origin is not allowed.')
     }
-    if (!isMcp) request.user = await services.auth.authenticate(request.cookies.memties_session)
+    if (!isMcp && !isOAuthProtocol) request.user = await services.auth.authenticate(request.cookies.memties_session)
   })
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ message: error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ') })
@@ -85,6 +89,7 @@ export const createApp = async (config: Config, services: Services) => {
     return reply.code(500).send({ message: 'Something went wrong. Please try again.' })
   })
   app.get('/api/health', async () => ({ status: 'ok' }))
+  if (services.db) await app.register(async scope => oauthRoutes(scope, services.db!, config))
   if (services.push) await app.register(async scope => pushRoutes(scope, services.push!, config))
   if (services.contacts) await app.register(async scope => importRoutes(scope, services.contacts!))
   if (services.transfer) await app.register(async scope => transferRoutes(scope, services.transfer!))

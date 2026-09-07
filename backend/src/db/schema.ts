@@ -110,6 +110,12 @@ export const samlRequests = mysqlTable('saml_requests', {
   createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
 })
 
+export const oauthRecords = mysqlTable('oauth_records', {
+  id: varchar('id', { length: 80 }).primaryKey(),
+  value: text('value').notNull(),
+  expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+}, table => [index('oauth_expiry').on(table.expiresAt)])
+
 export const pushSubscriptions = mysqlTable('push_subscriptions', {
   endpointHash: varchar('endpoint_hash', { length: 64 }).primaryKey(),
   userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),

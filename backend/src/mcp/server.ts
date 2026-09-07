@@ -49,7 +49,7 @@ export const mcpRoutes = async (app: FastifyInstance, services: McpServices, con
     if (request.headers.origin && request.headers.origin !== config.APP_ORIGIN) throw new ServiceError(403, 'Request origin is not allowed.')
     const authorization = request.headers.authorization
     const identity = await services.tokens.authenticate(authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined)
-    if (!identity) return reply.code(401).header('WWW-Authenticate', 'Bearer realm="Memties MCP"').send({ message: 'Invalid or expired MCP token.' })
+    if (!identity) return reply.code(401).header('WWW-Authenticate', `Bearer resource_metadata="${config.APP_ORIGIN}/api/oauth/resource", scope="memties:read"`).send({ message: 'Invalid or expired MCP token.' })
     const server = createMcpServer(services, identity)
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
     await server.connect(transport)
@@ -63,5 +63,11 @@ export const mcpRoutes = async (app: FastifyInstance, services: McpServices, con
       await server.close()
     }
   })
-  for (const method of ['GET', 'DELETE'] as const) app.route({ method, url: '/api/mcp', handler: async (_request, reply) => reply.code(405).header('Allow', 'POST').send({ message: 'Use MCP Streamable HTTP POST.' }) })
+  for (const method of ['GET', 'DELETE'] as const) app.route({ method, url: '/api/mcp', handler: async (request, reply) => {
+    const header = request.headers.authorization
+    if (!await services.tokens.authenticate(header?.startsWith('Bearer ') ? header.slice(7) : undefined)) {
+      return reply.code(401).header('WWW-Authenticate', `Bearer resource_metadata="${config.APP_ORIGIN}/api/oauth/resource", scope="memties:read"`).send({ message: 'Authentication required.' })
+    }
+    return reply.code(405).header('Allow', 'POST').send({ message: 'Use MCP Streamable HTTP POST.' })
+  } })
 }
