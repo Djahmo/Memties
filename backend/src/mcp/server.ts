@@ -28,6 +28,16 @@ export const createMcpServer = (services: McpServices, identity: { userId: strin
   const write = { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   const userId = identity.userId
   server.registerTool('list_groups', { description: 'List accessible groups and their roles, parent IDs and privacy flags.', inputSchema: z.object({}), annotations: read }, async () => run(false, () => services.groups.list(userId)))
+  const groupInput = z.object({
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(2000).default(''),
+    parentId: z.uuid().nullable().describe('Explicit parent group ID for a subgroup, or null for a new root group.'),
+  }).strict()
+  server.registerTool('create_group', {
+    description: 'Create a root group with parentId=null or a subgroup with an explicit parent ID from list_groups. Subgroups require owner access to the parent and inherit its sharing permissions. For a private subgroup, use Personal or one of its descendants as parent. Ask when the parent or sharing intent is ambiguous. Returns the created group ID, usable as parentId for further subgroups.',
+    inputSchema: groupInput,
+    annotations: write,
+  }, async input => run(true, () => services.groups.create(userId, groupInput.parse(input))))
   server.registerTool('search_people', { description: 'Search visible contacts, optionally within a recursive group scope.', inputSchema: listInput, annotations: read }, async input => run(false, () => services.people.list(userId, listInput.parse(input))))
   server.registerTool('get_person', { description: 'Read an accessible contact profile. Use search_entries to retrieve their visible history.', inputSchema: z.object({ id: z.uuid() }), annotations: read }, async ({ id }) => run(false, () => services.people.get(userId, id)))
   server.registerTool('create_person', { description: 'Create a contact in explicit writable groups. Ask the user if sharing intent is ambiguous.', inputSchema: personInput, annotations: write }, async input => run(true, () => services.people.create(userId, personInput.parse(input))))
