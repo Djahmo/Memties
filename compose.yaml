@@ -15,7 +15,12 @@ services:
       retries: 30
     restart: unless-stopped
   app:
-    build: .
+    build:
+      context: .
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,db}
     env_file:
       - path: .env
         required: false
@@ -24,6 +29,10 @@ services:
       HOST: 0.0.0.0
       PORT: 3001
       SERVE_FRONTEND: "true"
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,db}
+      NODE_USE_ENV_PROXY: "1"
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
       DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL to mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties}
     ports:

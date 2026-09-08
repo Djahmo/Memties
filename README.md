@@ -89,6 +89,8 @@ SAML requires an HTTPS app origin, the IdP issuer, its signing certificate, and 
 
 ### Docker
 
+Optional `http_proxy` and `https_proxy` variables can be set in the root `.env` or in Portainer's stack environment variables. Compose forwards them to the build and application container; Node's environment proxy support is enabled. `no_proxy` defaults to `localhost,127.0.0.1,::1,db` so local healthchecks bypass the proxy. No proxy address is stored in the image or source. These settings do not configure the Docker daemon's image downloads or Portainer's Git access; configure their proxies separately if required.
+
 The image serves both the built frontend and the API. With Docker Compose 2.24.0 or newer, copy the root `.env.example` to `.env` and set your public HTTPS `APP_ORIGIN`, a strong `MYSQL_PASSWORD`, and the matching `DOCKER_DATABASE_URL` (`mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties`). Docker uses this root `.env`; `backend/.env` remains dedicated to local development. Optional integration settings from `backend/.env.example` also belong in the root `.env` for Docker. Then:
 
 ```sh
