@@ -66,6 +66,7 @@ export const fr = {
   'Use local account': 'Utiliser un compte local',
   'Sign in with directory': 'Se connecter via l’annuaire',
   'Single sign-on': 'Connexion unique',
+  'Quick sign-in': 'Connexion rapide',
   'This identity is already linked to another account.': 'Cette identité est déjà associée à un autre compte.',
   'Sign in to your existing account and link this provider in settings.': 'Connectez-vous à votre compte existant et associez cette méthode de connexion dans les paramètres.',
   'Authentication provider is unavailable.': 'Cette méthode de connexion est indisponible.',

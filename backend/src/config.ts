@@ -28,6 +28,7 @@ const schema = z.object({
   LDAP_EMAIL_ATTRIBUTE: z.string().regex(/^[a-zA-Z][a-zA-Z0-9-]*$/).optional(),
   LDAP_NAME_ATTRIBUTE: z.string().regex(/^[a-zA-Z][a-zA-Z0-9-]*$/).optional(),
   SAML_ENTRY_POINT: z.url().refine(value => value.startsWith('https://')).optional(),
+  SAML_ONLY: z.enum(['true', 'false']).optional(),
   SAML_IDP_ISSUER: z.string().min(1).optional(),
   SAML_IDP_CERT_FILE: z.string().min(1).optional(),
   SAML_SP_KEY_FILE: z.string().min(1).optional(),
@@ -35,6 +36,7 @@ const schema = z.object({
   SAML_EMAIL_ATTRIBUTE: z.string().optional(),
   SAML_NAME_ATTRIBUTE: z.string().optional(),
 }).superRefine((value, context) => {
+  if (value.SAML_ONLY === 'true' && !value.SAML_ENTRY_POINT) context.addIssue({ code: 'custom', path: ['SAML_ENTRY_POINT'], message: 'Required when SAML_ONLY is true' })
   if (value.NODE_ENV === 'production' && !value.APP_ORIGIN.startsWith('https://')) {
     context.addIssue({ code: 'custom', path: ['APP_ORIGIN'], message: 'HTTPS is required in production' })
   }

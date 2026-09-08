@@ -10,6 +10,7 @@ export const AuthPage = ({ onAuthenticated }: { onAuthenticated: (user: User) =>
   const { t } = useTranslation()
   const [register, setRegister] = useState(false)
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
+  const [localEnabled, setLocalEnabled] = useState(false)
   const [providers, setProviders] = useState({ ldapEnabled: false, samlEnabled: false })
   const [directory, setDirectory] = useState(false)
   const [error, setError] = useState(() => {
@@ -21,7 +22,7 @@ export const AuthPage = ({ onAuthenticated }: { onAuthenticated: (user: User) =>
     let active = true
     const url = new URL(window.location.href)
     if (url.searchParams.has('authError')) { url.searchParams.delete('authError'); window.history.replaceState(null, '', url) }
-    api<{ registrationEnabled: boolean; ldapEnabled: boolean; samlEnabled: boolean }>('/auth/config').then(value => { if (active) { setRegistrationEnabled(value.registrationEnabled); setProviders(value) } }).catch(() => { if (active) setError('Unable to load account settings. Refresh to try again.') })
+    api<{ localEnabled: boolean; registrationEnabled: boolean; ldapEnabled: boolean; samlEnabled: boolean }>('/auth/config').then(value => { if (active) { setLocalEnabled(value.localEnabled); setRegistrationEnabled(value.registrationEnabled); setProviders(value) } }).catch(() => { if (active) setError('Unable to load account settings. Refresh to try again.') })
     return () => { active = false }
   }, [])
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -44,20 +45,20 @@ export const AuthPage = ({ onAuthenticated }: { onAuthenticated: (user: User) =>
     </section>
     <section className="flex items-center justify-center p-6 md:p-12">
       <div className="w-full max-w-sm"><p className="eyebrow">{t("Welcome to Memties")}</p><h2 className="text-3xl font-semibold mt-3 mb-2">{register ? t("Create your account") : t("Welcome back")}</h2><p className="muted mb-8">{register ? t("Your private Personal space is created automatically.") : t("Sign in to your relationship workspace.")}</p>
-        <form onSubmit={submit}><fieldset disabled={busy} className="space-y-5">
+        {error && <p className="error mb-4" role="alert">{t(error)}</p>}
+        {localEnabled && <form onSubmit={submit}><fieldset disabled={busy} className="space-y-5">
           {register && <label className="field-label">{t("Your name")}<input className="input-field" name="displayName" autoComplete="name" maxLength={120} required /></label>}
           <label className="field-label">{t(directory ? 'Directory username' : 'Email')}<input className="input-field" name="email" type={directory ? 'text' : 'email'} autoComplete={directory ? 'username' : 'email'} maxLength={254} required /></label>
           <label className="field-label">{t("Password")}<input className="input-field" key={register ? 'new' : 'current'} name="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={register ? 12 : 1} maxLength={256} required />{register && <span className="text-xs muted font-normal">{t("Use at least 12 characters.")}</span>}</label>
-          {error && <p className="error" role="alert">{t(error)}</p>}
           <button className="primary w-full" type="submit">{busy ? t("Please wait…") : register ? t("Create account") : t("Sign in")}</button>
-        </fieldset></form>
+        </fieldset></form>}
         {registrationEnabled && !directory && <button disabled={busy} className="mt-6 text-sm text-accent underline underline-offset-4" onClick={() => { setRegister(value => !value); setError('') }}>{register ? t("Already have an account? Sign in") : t("New here? Create an account")}</button>}
         {providers.ldapEnabled && <button disabled={busy} className="secondary w-full mt-4" onClick={() => { setDirectory(value => !value); setRegister(false); setError('') }}>{t(directory ? 'Use local account' : 'Sign in with directory')}</button>}
-        {providers.samlEnabled && <button disabled={busy} className="secondary w-full mt-3" onClick={async () => {
+        {providers.samlEnabled && <button disabled={busy} className={`${localEnabled ? 'secondary' : 'primary'} w-full mt-3`} onClick={async () => {
           setBusy(true); setError('')
           try { window.location.assign((await api<{ url: string }>('/auth/saml/start', { method: 'POST', body: {} })).url) }
           catch (cause) { setError(errorMessage(cause)); setBusy(false) }
-        }}>{t('Single sign-on')}</button>}
+        }}>{t('Quick sign-in')}</button>}
       </div>
     </section>
   </main>

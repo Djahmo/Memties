@@ -13,6 +13,7 @@ export const providerRoutes = async (app: FastifyInstance, service: Awaited<Retu
   const sessionCookie = { path: '/', httpOnly: true, secure: config.NODE_ENV === 'production' || config.APP_ORIGIN.startsWith('https://'), sameSite: 'lax' as const, maxAge: sessionLifetime }
   const flowCookie = { path: '/api/auth/saml', httpOnly: true, secure: true, sameSite: 'none' as const, maxAge: 600 }
   if (config.LDAP_URL) app.post('/api/auth/ldap', limits, async (request, reply) => {
+    if (config.SAML_ONLY === 'true') throw new ServiceError(403, 'Directory sign-in is disabled.')
     const input = z.object({ username: z.string().trim().min(1).max(254), password: z.string().min(1).max(256), link: z.boolean().default(false) }).strict().parse(request.body)
     if (input.link && !request.user) throw new ServiceError(401, 'Please sign in.')
     const result = await service.ldap(input.username, input.password, input.link ? request.user!.id : undefined)

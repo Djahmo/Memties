@@ -18,18 +18,20 @@ export const authRoutes = async (app: FastifyInstance, auth: ReturnType<typeof c
   const cookieOptions = { path: '/', httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax' as const }
   const limits = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }
 
-  app.get('/api/auth/config', async () => ({ registrationEnabled: config.ALLOW_REGISTRATION, ldapEnabled: !!config.LDAP_URL, samlEnabled: !!config.SAML_ENTRY_POINT }))
+  const localEnabled = config.SAML_ONLY !== 'true'
+  app.get('/api/auth/config', async () => ({ localEnabled, registrationEnabled: localEnabled && config.ALLOW_REGISTRATION, ldapEnabled: localEnabled && !!config.LDAP_URL, samlEnabled: !!config.SAML_ENTRY_POINT }))
   app.get('/api/auth/me', async request => {
     if (!request.user) throw new ServiceError(401, 'Please sign in.')
     return request.user
   })
   app.post('/api/auth/register', limits, async (request, reply) => {
-    if (!config.ALLOW_REGISTRATION) throw new ServiceError(403, 'Registration is disabled.')
+    if (!localEnabled || !config.ALLOW_REGISTRATION) throw new ServiceError(403, 'Registration is disabled.')
     const result = await auth.register(registration.parse(request.body))
     reply.setCookie('memties_session', result.token, { ...cookieOptions, maxAge: sessionLifetime })
     return reply.code(201).send(result.user)
   })
   app.post('/api/auth/login', limits, async (request, reply) => {
+    if (!localEnabled) throw new ServiceError(403, 'Local sign-in is disabled.')
     const input = credentials.parse(request.body)
     const result = await auth.login(input.email, input.password)
     await auth.logout(request.cookies.memties_session)

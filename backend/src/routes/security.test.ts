@@ -59,10 +59,27 @@ test('registration can be disabled and login attempts are rate limited', async t
   })
   t.after(() => app.close())
   const headers = { origin: config.APP_ORIGIN }
-  assert.deepEqual((await app.inject({ url: '/api/auth/config' })).json(), { registrationEnabled: false, ldapEnabled: false, samlEnabled: false })
+  assert.deepEqual((await app.inject({ url: '/api/auth/config' })).json(), { localEnabled: true, registrationEnabled: false, ldapEnabled: false, samlEnabled: false })
   assert.equal((await app.inject({ method: 'POST', url: '/api/auth/register', headers, payload: {} })).statusCode, 403)
   for (let attempt = 0; attempt < 10; attempt++) {
     assert.equal((await app.inject({ method: 'POST', url: '/api/auth/login', headers, payload: {} })).statusCode, 400)
   }
   assert.equal((await app.inject({ method: 'POST', url: '/api/auth/login', headers, payload: {} })).statusCode, 429)
+})
+
+test('SAML-only mode blocks password endpoints while keeping SAML login available', async t => {
+  const app = await createApp({ ...config, SAML_ONLY: 'true', SAML_ENTRY_POINT: 'https://idp.example/sso', LDAP_URL: 'ldaps://directory.example' }, {
+    auth: { authenticate: async () => null, register: unused, login: unused, logout: unused, externalLogin: unused },
+    groups: { list: unused, create: unused, update: unused, move: unused, remove: unused },
+    providers: { ldap: unused, samlMetadata: () => '', samlComplete: unused, samlStart: async () => ({ state: 'state', url: 'https://idp.example/sso' }) },
+  })
+  t.after(() => app.close())
+  const headers = { origin: config.APP_ORIGIN }
+  assert.deepEqual((await app.inject({ url: '/api/auth/config' })).json(), { localEnabled: false, registrationEnabled: false, ldapEnabled: false, samlEnabled: true })
+  for (const endpoint of ['login', 'register', 'ldap']) {
+    assert.equal((await app.inject({ method: 'POST', url: `/api/auth/${endpoint}`, headers, payload: { email: user.email, username: 'alice', displayName: 'Alice', password: 'valid-long-password' } })).statusCode, 403)
+  }
+  const start = await app.inject({ method: 'POST', url: '/api/auth/saml/start', headers, payload: {} })
+  assert.equal(start.statusCode, 200)
+  assert.equal(start.json().url, 'https://idp.example/sso')
 })

@@ -83,6 +83,8 @@ Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, optionally `SMTP_USER`/`SMTP_PASSWORD
 
 ### LDAP and SAML
 
+Set `SAML_ONLY=true` in the application environment to allow only SAML sign-in. This hides password forms and registration and blocks local login, registration, and LDAP endpoints. A configured SAML entry point is required at startup. The default is false; existing sessions remain valid. The SAML button is labelled “Connexion rapide” in French.
+
 See `backend/.env.example` for all integration variables. LDAP requires LDAPS with certificate verification, a search account, a search base, and a stable identity attribute (`entryUUID`, or `objectGUID` for Active Directory). Configure `LDAP_LOGIN_ATTRIBUTE=sAMAccountName` for AD. A successful user bind is required; the directory password is never stored. Custom certificate authorities can be configured with Node's `NODE_EXTRA_CA_CERTS`.
 
 SAML requires an HTTPS app origin, the IdP issuer, and its signing certificate (PEM). Register `/api/auth/saml/metadata` as the entity ID/metadata URL and `/api/auth/saml/callback` as the HTTP-POST assertion consumer service. Require a persistent NameID, signed responses and signed assertions, and map the email/display name attributes. AuthnRequests are unsigned by default; optionally set both `SAML_SP_KEY_FILE` and `SAML_SP_CERT_FILE` to sign them with SHA-256. Issuer, audience, request correlation and assertion lifetime are always validated. Browser-bound flows and request IDs are stored in MySQL and consumed under a lock to prevent replay. IdP-initiated sign-in is intentionally disabled. Mount certificate/key files separately; never include them in an image or commit them.
