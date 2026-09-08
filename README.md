@@ -87,9 +87,9 @@ Set `ADMIN_EMAILS=admin@example.com,other@example.com` in the application enviro
 
 Administrators can open **Administration** to list users, their sign-in methods and creation dates, and suspend/reactivate accounts. Suspension revokes sessions and API/MCP tokens and prevents new logins or token issuance. Reactivation requires a new login and new API tokens. Existing private vault permissions remain unchanged. Administrators cannot suspend themselves or other configured administrators; remove the target email from `ADMIN_EMAILS` and restart first. Docker applies the new user-status migration at startup; back up the database before deploying.
 
-### LDAP and SAML configuration
-
 Suspended non-administrator accounts can be permanently deleted from Administration after confirming their email. This removes their contacts and entries, including shared contributions and dependent reminders, their private group tree, memberships, credentials and tokens. Other users' contributions in surviving shared groups are retained. Exclusive shared group trees with no other members or contributions are removed; groups used by others must retain another owner or deletion is refused. Deletion is transactional and does not remove data from existing backups or from Universe. An identity still allowed by Universe can create a new empty Memties account on a later login; keep the account suspended or revoke its Universe access to prevent this.
+
+### LDAP and SAML configuration
 
 Set `SAML_ONLY=true` in the application environment to allow only SAML sign-in. This hides password forms and registration and blocks local login, registration, and LDAP endpoints. A configured SAML entry point is required at startup. The default is false; existing sessions remain valid. The SAML button is labelled “Connexion rapide” in French.
 

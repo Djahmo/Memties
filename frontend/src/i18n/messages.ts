@@ -1,4 +1,5 @@
 export const fr = {
+  'This does not revoke access at your identity provider. A later sign-in can create a new empty account.': 'L’accès auprès du fournisseur d’identité n’est pas révoqué. Une prochaine connexion peut créer un nouveau compte vide.',
   'Contacts and entries created by this account will also disappear from shared groups. Other members will lose access to them.': 'Les contacts et notes créés par ce compte seront aussi supprimés des groupes partagés. Les autres membres n’y auront plus accès.',
   'Administrator accounts cannot be deleted.': 'Les comptes administrateurs ne peuvent pas être supprimés.',
   'Suspend the account before deleting it.': 'Suspendez le compte avant de le supprimer.',

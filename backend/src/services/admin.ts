@@ -70,12 +70,18 @@ export const createAdminService = (db: Database, adminEmails = '') => {
       }
       const groupIds = [...deletedGroups]
       const entryIds = (await tx.select({ id: entries.id }).from(entries).where(or(eq(entries.creatorId, userId), groupIds.length ? inArray(entries.groupId, groupIds) : undefined))).map(row => row.id)
-      const personIds = (await tx.select({ id: people.id }).from(people).where(eq(people.creatorId, userId))).map(row => row.id)
+      const personIds = new Set((await tx.select({ id: people.id }).from(people).where(eq(people.creatorId, userId))).map(row => row.id))
+      if (groupIds.length) {
+        const privateContacts = await tx.select().from(personGroups).where(inArray(personGroups.groupId, groupIds))
+        const candidateIds = [...new Set(privateContacts.map(link => link.personId))]
+        const links = candidateIds.length ? await tx.select().from(personGroups).where(inArray(personGroups.personId, candidateIds)) : []
+        for (const id of candidateIds) if (links.filter(link => link.personId === id).every(link => deletedGroups.has(link.groupId))) personIds.add(id)
+      }
       await tx.delete(reminders).where(or(eq(reminders.creatorId, userId), entryIds.length ? inArray(reminders.entryId, entryIds) : undefined))
       if (entryIds.length) await tx.delete(entries).where(inArray(entries.id, entryIds))
-      if (personIds.length) {
-        await tx.delete(entryPeople).where(inArray(entryPeople.personId, personIds))
-        await tx.delete(people).where(inArray(people.id, personIds))
+      if (personIds.size) {
+        await tx.delete(entryPeople).where(inArray(entryPeople.personId, [...personIds]))
+        await tx.delete(people).where(inArray(people.id, [...personIds]))
       }
       if (groupIds.length) {
         await tx.delete(personGroups).where(inArray(personGroups.groupId, groupIds))

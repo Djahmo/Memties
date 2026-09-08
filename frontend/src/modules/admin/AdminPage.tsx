@@ -57,6 +57,7 @@ export const AdminPage = ({ onBack }: { onBack: () => void }) => {
         <h2 id="delete-account-title" className="text-lg font-semibold">{t('Permanently delete {{name}}?', { name: deleting.displayName })}</h2>
         <p>{t('This permanently deletes the account and its data. This cannot be undone.')}</p>
         <p>{t('Contacts and entries created by this account will also disappear from shared groups. Other members will lose access to them.')}</p>
+        <p className="muted text-sm">{t('This does not revoke access at your identity provider. A later sign-in can create a new empty account.')}</p>
         <form onSubmit={event => { event.preventDefault(); void remove() }} className="space-y-4">
           <label className="field-label">{t('Type {{email}} to confirm', { email: deleting.email })}<input className="input-field" type="email" autoComplete="off" value={confirmation} disabled={busy} onChange={event => setConfirmation(event.target.value)} required /></label>
           <div className="flex gap-3 flex-wrap"><button className="primary" disabled={busy || confirmation.trim().toLowerCase() !== deleting.email.toLowerCase()} type="submit">{t('Delete permanently')}</button><button className="secondary" type="button" disabled={busy} onClick={() => { setDeleting(null); setConfirmation('') }}>{t('Cancel')}</button></div>
