@@ -89,16 +89,18 @@ SAML requires an HTTPS app origin, the IdP issuer, its signing certificate, and 
 
 ### Docker
 
-The image serves both the built frontend and the API. Set the HTTPS `APP_ORIGIN` in `backend/.env`, set `MYSQL_PASSWORD` and `DOCKER_DATABASE_URL` in your deployment environment (`mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties`), then:
+The image serves both the built frontend and the API. With Docker Compose 2.24.0 or newer, copy the root `.env.example` to `.env` and set your public HTTPS `APP_ORIGIN`, a strong `MYSQL_PASSWORD`, and the matching `DOCKER_DATABASE_URL` (`mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties`). Docker uses this root `.env`; `backend/.env` remains dedicated to local development. Optional integration settings from `backend/.env.example` also belong in the root `.env` for Docker. Then:
 
 ```sh
 docker compose build
-docker compose up -d db
+docker compose up -d --wait db
 docker compose run --rm app node dist/db/migrate.js
-docker compose up -d app
+docker compose up -d --wait app
 ```
 
 Place your HTTPS reverse proxy in front of `127.0.0.1:3001`, preserving the Origin header. Mount any SAML key/certificate files read-only using a compose override. Back up the `mysql_data` volume; migrations must be applied before starting each updated application. No email or identity provider is configured automatically.
+
+The database healthcheck verifies an authenticated query against the application database; the application healthcheck probes `/api/health` (HTTP availability, not database readiness). The runtime image includes production dependencies, compiled code and migrations only. Changing `MYSQL_PASSWORD` in `.env` does not change the password of a user in an existing MySQL volume; update that database account explicitly before updating the connection settings.
 
 ### Push notifications for reminders
 

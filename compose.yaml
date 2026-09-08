@@ -9,19 +9,22 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -u \"$$MYSQL_USER\" -D \"$$MYSQL_DATABASE\" -e 'SELECT 1' >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 30
     restart: unless-stopped
   app:
     build: .
-    env_file: backend/.env
+    env_file:
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3001
       SERVE_FRONTEND: "true"
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
       DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL to mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties}
     ports:
       - "127.0.0.1:3001:3001"
