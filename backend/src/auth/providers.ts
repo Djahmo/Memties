@@ -12,6 +12,11 @@ import { samlRequests } from '../db/schema.js'
 import { ServiceError } from '../services/errors.js'
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
+export class SamlLoginError extends ServiceError {
+  constructor(public readonly reason: string) {
+    super(401, 'Single sign-on failed. Please try again.')
+  }
+}
 const profileInput = z.object({ email: z.email().max(254).transform(value => value.toLowerCase()), displayName: z.string().trim().min(1).max(120) })
 const attribute = (value: unknown): string => {
   if (typeof value === 'string') return value
@@ -94,14 +99,27 @@ export const createProviderService = async (db: Database, auth: ReturnType<typeo
     samlComplete: async (state: string, response: string) => {
       const validated = await db.transaction(async tx => {
         const [flow] = await tx.select().from(samlRequests).where(and(eq(samlRequests.id, `flow:${hash(state)}`), gt(samlRequests.createdAt, new Date(Date.now() - lifetime)))).for('update')
-        if (!flow) throw new ServiceError(401, 'Single sign-on failed. Please try again.')
+        if (!flow) throw new SamlLoginError('Login request expired or already consumed')
         let profile
         try { profile = (await saml(tx, state).validatePostResponseAsync({ SAMLResponse: response })).profile }
-        catch { throw new ServiceError(401, 'Single sign-on failed. Please try again.') }
-        if (!profile || profile.issuer !== config.SAML_IDP_ISSUER || !profile.nameID || profile.nameIDFormat !== 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent') {
-          throw new ServiceError(401, 'Single sign-on failed. Please try again.')
+        catch (error) {
+          const message = error instanceof Error ? error.message : ''
+          const category = /signature/i.test(message) ? 'signature or IdP certificate'
+            : /InResponseTo/i.test(message) ? 'request correlation'
+            : /audience/i.test(message) ? 'audience'
+            : /issuer/i.test(message) ? 'issuer'
+            : /expired|NotBefore|NotOnOrAfter|not yet valid/i.test(message) ? 'assertion validity period'
+            : /decrypt|encrypted/i.test(message) ? 'assertion encryption'
+            : 'response format or status'
+          throw new SamlLoginError(`SAML validation failed: ${category}`)
         }
-        const user = profileInput.parse({ email: attribute(profile[config.SAML_EMAIL_ATTRIBUTE ?? 'email']), displayName: attribute(profile[config.SAML_NAME_ATTRIBUTE ?? 'displayName']) })
+        if (!profile) throw new SamlLoginError('Missing identity profile')
+        if (profile.issuer !== config.SAML_IDP_ISSUER) throw new SamlLoginError('Unexpected IdP issuer')
+        if (!profile.nameID) throw new SamlLoginError('Missing NameID')
+        if (profile.nameIDFormat !== 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent') throw new SamlLoginError('NameID format must be persistent')
+        const parsed = profileInput.safeParse({ email: attribute(profile[config.SAML_EMAIL_ATTRIBUTE ?? 'email']), displayName: attribute(profile[config.SAML_NAME_ATTRIBUTE ?? 'displayName']) })
+        if (!parsed.success) throw new SamlLoginError(`Missing or invalid mapped attributes: ${parsed.error.issues.map(issue => issue.path.join('.')).join(', ')}`)
+        const user = parsed.data
         await tx.delete(samlRequests).where(eq(samlRequests.id, flow.id))
         return { subject: hash(profile.nameID), user, linkUserId: flow.value || undefined }
       })

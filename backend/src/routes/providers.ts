@@ -6,6 +6,7 @@ import type { createProviderService } from '../auth/providers.js'
 import type { createAuthService } from '../auth/service.js'
 import { sessionLifetime } from '../auth/service.js'
 import { ServiceError } from '../services/errors.js'
+import { SamlLoginError } from '../auth/providers.js'
 
 export const providerRoutes = async (app: FastifyInstance, service: Awaited<ReturnType<typeof createProviderService>>, auth: ReturnType<typeof createAuthService>, config: Config) => {
   const limits = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }
@@ -32,7 +33,7 @@ export const providerRoutes = async (app: FastifyInstance, service: Awaited<Retu
   app.post('/api/auth/saml/callback', limits, async (request, reply) => {
     try {
       const input = z.object({ SAMLResponse: z.string().min(1).max(120000), RelayState: z.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(request.body)
-      if (!request.cookies.memties_saml || input.RelayState !== request.cookies.memties_saml) throw new ServiceError(401, 'Single sign-on failed. Please try again.')
+      if (!request.cookies.memties_saml || input.RelayState !== request.cookies.memties_saml) throw new SamlLoginError('Missing or mismatched login cookie')
       const result = await service.samlComplete(input.RelayState, input.SAMLResponse)
       await auth.logout(request.cookies.memties_session)
       reply.setCookie('memties_session', result.token, sessionCookie)
@@ -41,6 +42,7 @@ export const providerRoutes = async (app: FastifyInstance, service: Awaited<Retu
     } catch (error) {
       reply.clearCookie('memties_saml', flowCookie)
       const collision = error instanceof ServiceError && error.message === 'Sign in to your existing account and link this provider in settings.'
+      request.log.warn({ reason: error instanceof SamlLoginError ? error.reason : collision ? 'Existing account requires identity linking' : error instanceof z.ZodError ? 'Invalid SAML callback fields' : 'Unexpected login processing error' }, 'SAML login failed')
       return reply.redirect(`${config.APP_ORIGIN}/?authError=${collision ? 'link' : 'saml'}`)
     }
   })
