@@ -21,9 +21,13 @@ services:
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
         no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,db}
-    env_file:
-      - path: .env
-        required: false
+    volumes:
+      - type: bind
+        source: ${APP_ENV_FILE:-/opt/memties/.env}
+        target: /app/backend/.env
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -33,7 +37,6 @@ services:
       https_proxy: ${https_proxy:-}
       no_proxy: ${no_proxy:-localhost,127.0.0.1,::1,db}
       NODE_USE_ENV_PROXY: "1"
-      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
       DATABASE_URL: ${DOCKER_DATABASE_URL:?Set DOCKER_DATABASE_URL to mysql://memties:URL_ENCODED_PASSWORD@db:3306/memties}
     ports:
       - "127.0.0.1:${APP_PORT:-3001}:3001"
