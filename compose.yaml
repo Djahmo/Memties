@@ -15,6 +15,7 @@ services:
       retries: 30
     restart: unless-stopped
   app:
+    command: ["sh", "-c", "node dist/db/migrate.js && exec node dist/index.js"]
     build:
       context: .
       args:

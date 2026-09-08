@@ -67,7 +67,7 @@ $env:TEST_DATABASE_URL='mysql://USER:PASSWORD@127.0.0.1:3306/memties_test'
 pnpm --dir backend test
 ```
 
-After schema changes, use `pnpm --dir backend db:generate` and commit the generated migration and metadata. Migrations are explicitly applied; the application does not modify the schema on startup.
+After schema changes, use `pnpm --dir backend db:generate` and commit the generated migration and metadata. Outside Docker Compose, apply migrations explicitly. The Compose startup command applies pending migrations before launching the application.
 
 ## Deployment notes
 
@@ -99,12 +99,10 @@ Create `/opt/memties/.env` on the Docker server using `deploy/app.env.example`, 
 
 ```sh
 docker compose build
-docker compose up -d --wait db
-docker compose run --rm app node dist/db/migrate.js
-docker compose up -d --wait app
+docker compose up -d --wait
 ```
 
-Place your HTTPS reverse proxy in front of `127.0.0.1:3001`, preserving the Origin header. Mount any SAML key/certificate files read-only using a compose override. Back up the `mysql_data` volume; migrations must be applied before starting each updated application. No email or identity provider is configured automatically.
+Place your HTTPS reverse proxy in front of `127.0.0.1:3001` (or `APP_PORT`), preserving the Origin header. Mount any SAML key/certificate files read-only using a compose override. Back up the database before updates. Compose waits for MySQL to be healthy, applies pending migrations, then starts the application only if migration succeeds. Already applied migrations are tracked by Drizzle. Keep a single application instance with this startup workflow to avoid concurrent migrations. No email or identity provider is configured automatically.
 
 The database healthcheck verifies an authenticated query against the application database; the application healthcheck probes `/api/health` (HTTP availability, not database readiness). The runtime image includes production dependencies, compiled code and migrations only. Changing `MYSQL_PASSWORD` in `.env` does not change the password of a user in an existing MySQL volume; update that database account explicitly before updating the connection settings.
 
