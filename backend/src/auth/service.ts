@@ -4,18 +4,24 @@ import type { Database } from '../db/index.js'
 import { groupMembers, groups, identities, sessions, users } from '../db/schema.js'
 import { ServiceError } from '../services/errors.js'
 import { hashPassword, verifyPassword } from './password.js'
+import { accountRole, administratorEmails } from './admin.js'
 
-export type User = Pick<typeof users.$inferSelect, 'id' | 'email' | 'displayName'>
+export type User = Pick<typeof users.$inferSelect, 'id' | 'email' | 'displayName'> & { role?: 'admin' | 'user' }
 export const sessionLifetime = 7 * 24 * 60 * 60
 const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex')
 const dummyHash = `scrypt$${'0'.repeat(32)}$${'0'.repeat(128)}`
 
-export const createAuthService = (db: Database) => {
+export const createAuthService = (db: Database, adminEmails = '') => {
+  const admins = administratorEmails(adminEmails)
   const createSession = async (user: User) => {
     const token = randomBytes(32).toString('hex')
-    await db.insert(sessions).values({ tokenHash: tokenHash(token), userId: user.id, expiresAt: new Date(Date.now() + sessionLifetime * 1000) })
+    await db.transaction(async tx => {
+      const [account] = await tx.select({ status: users.status }).from(users).where(eq(users.id, user.id)).for('update')
+      if (!account || account.status !== 'active') throw new ServiceError(403, 'This account is suspended.')
+      await tx.insert(sessions).values({ tokenHash: tokenHash(token), userId: user.id, expiresAt: new Date(Date.now() + sessionLifetime * 1000) })
+    })
     await db.delete(sessions).where(lt(sessions.expiresAt, new Date()))
-    return { user, token }
+    return { user: { ...user, role: accountRole(user.email, admins) }, token }
   }
 
   return {
@@ -77,8 +83,8 @@ export const createAuthService = (db: Database) => {
       if (!token || !/^[a-f0-9]{64}$/.test(token)) return null
       const [result] = await db.select({ id: users.id, email: users.email, displayName: users.displayName })
         .from(sessions).innerJoin(users, eq(users.id, sessions.userId))
-        .where(and(eq(sessions.tokenHash, tokenHash(token)), gt(sessions.expiresAt, new Date()))).limit(1)
-      return result ?? null
+        .where(and(eq(sessions.tokenHash, tokenHash(token)), gt(sessions.expiresAt, new Date()), eq(users.status, 'active'))).limit(1)
+      return result ? { ...result, role: accountRole(result.email, admins) } : null
     },
     logout: async (token: string | undefined) => {
       if (token) await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash(token)))

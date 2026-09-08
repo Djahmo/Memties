@@ -5,6 +5,7 @@ export const users = mysqlTable('users', {
   id: varchar('id', { length: 36 }).primaryKey(),
   email: varchar('email', { length: 254 }).notNull().unique(),
   displayName: varchar('display_name', { length: 120 }).notNull(),
+  status: mysqlEnum('status', ['active', 'suspended']).notNull().default('active'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 })
 

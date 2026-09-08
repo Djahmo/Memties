@@ -29,6 +29,9 @@ const schema = z.object({
   LDAP_NAME_ATTRIBUTE: z.string().regex(/^[a-zA-Z][a-zA-Z0-9-]*$/).optional(),
   SAML_ENTRY_POINT: z.url().refine(value => value.startsWith('https://')).optional(),
   SAML_ONLY: z.enum(['true', 'false']).optional(),
+  ADMIN_EMAILS: z.string().optional().superRefine((value, context) => {
+    if (value && value.split(',').some(email => !z.email().safeParse(email.trim()).success)) context.addIssue({ code: 'custom', message: 'Use comma-separated administrator email addresses' })
+  }),
   SAML_IDP_ISSUER: z.string().min(1).optional(),
   SAML_IDP_CERT_FILE: z.string().min(1).optional(),
   SAML_SP_KEY_FILE: z.string().min(1).optional(),

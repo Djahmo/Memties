@@ -2,6 +2,8 @@ import type { createPushService } from './services/push.js'
 import { pushRoutes } from './routes/push.js'
 import Fastify, { LogController } from 'fastify'
 import { oauthRoutes } from './routes/oauth.js'
+import { adminRoutes } from './routes/admin.js'
+import { createAdminService } from './services/admin.js'
 import type { Database } from './db/index.js'
 import fastifyStatic from '@fastify/static'
 import { fileURLToPath } from 'node:url'
@@ -90,6 +92,7 @@ export const createApp = async (config: Config, services: Services) => {
   })
   app.get('/api/health', async () => ({ status: 'ok' }))
   if (services.db) await app.register(async scope => oauthRoutes(scope, services.db!, config))
+  if (services.db) await app.register(async scope => adminRoutes(scope, createAdminService(services.db!, config.ADMIN_EMAILS)))
   if (services.push) await app.register(async scope => pushRoutes(scope, services.push!, config))
   if (services.contacts) await app.register(async scope => importRoutes(scope, services.contacts!))
   if (services.transfer) await app.register(async scope => transferRoutes(scope, services.transfer!))

@@ -16,6 +16,54 @@ import { reminderInput, reminderListInput } from '../services/content-input.js'
 import { createReminderService } from '../services/reminders.js'
 import { createTokenService } from '../auth/tokens.js'
 import { apiTokens, reminders } from './schema.js'
+import { createAdminService } from '../services/admin.js'
+
+test('MySQL: administrator roles, suspension and session/token revocation', { skip: !process.env.TEST_DATABASE_URL }, async t => {
+  const url = process.env.TEST_DATABASE_URL!
+  assert.ok(new URL(url).pathname.endsWith('_test'))
+  const { db, pool } = connectDatabase(url)
+  const ownerIds: string[] = []
+  t.after(async () => {
+    try {
+      if (ownerIds.length) {
+        await db.delete(groupMembers).where(inArray(groupMembers.userId, ownerIds))
+        await db.delete(groups).where(inArray(groups.personalOwnerId, ownerIds))
+        await db.delete(users).where(inArray(users.id, ownerIds))
+      }
+    } finally { await pool.end() }
+  })
+  await migrate(db, { migrationsFolder: './drizzle' })
+  const suffix = randomUUID()
+  const adminEmail = `admin-${suffix}@example.test`
+  const auth = createAuthService(db, adminEmail.toUpperCase())
+  const admin = createAdminService(db, adminEmail)
+  const tokens = createTokenService(db)
+  const owner = await auth.register({ email: adminEmail, displayName: 'Admin', password: 'correct long password' })
+  ownerIds.push(owner.user.id)
+  const member = await auth.register({ email: `member-${suffix}@example.test`, displayName: 'Member', password: 'correct long password' })
+  ownerIds.push(member.user.id)
+  assert.equal(owner.user.role, 'admin')
+  assert.equal(member.user.role, 'user')
+  assert.equal((await createAuthService(db).authenticate(owner.token))?.role, 'user')
+  await auth.externalLogin('saml:admin-test', suffix, { email: member.user.email, displayName: 'Member' }, member.user.id)
+  const apiToken = await tokens.create(member.user.id, { name: 'test', access: 'read', days: 1 })
+  await assert.rejects(admin.setStatus(owner.user.id, owner.user.id, 'suspended'), { statusCode: 403 })
+  await admin.setStatus(owner.user.id, member.user.id, 'suspended')
+  assert.equal(await auth.authenticate(member.token), null)
+  assert.equal(await tokens.authenticate(apiToken.token), null)
+  assert.equal((await db.select().from(sessions).where(eq(sessions.userId, member.user.id))).length, 0)
+  assert.equal((await db.select().from(apiTokens).where(eq(apiTokens.userId, member.user.id))).length, 0)
+  await assert.rejects(auth.login(member.user.email, 'correct long password'), { statusCode: 403 })
+  await assert.rejects(auth.externalLogin('saml:admin-test', suffix, { email: member.user.email, displayName: 'Member' }), { statusCode: 403 })
+  await assert.rejects(tokens.create(member.user.id, { name: 'blocked', access: 'read', days: 1 }), { statusCode: 403 })
+  await admin.setStatus(owner.user.id, member.user.id, 'active')
+  assert.ok((await auth.login(member.user.email, 'correct long password')).token)
+  assert.equal(await auth.authenticate(member.token), null)
+  assert.equal(await tokens.authenticate(apiToken.token), null)
+  const ownGroups = await createGroupService(db).list(owner.user.id)
+  assert.equal(ownGroups.length, 1)
+  assert.equal(ownGroups[0].isPersonal, true)
+})
 
 test('MySQL: reminder permissions, MCP tokens, group moves and external identity linking', { skip: !process.env.TEST_DATABASE_URL }, async t => {
   const url = process.env.TEST_DATABASE_URL!

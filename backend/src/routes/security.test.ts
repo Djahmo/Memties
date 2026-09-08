@@ -4,7 +4,7 @@ import { createApp } from '../app.js'
 import type { Config } from '../config.js'
 
 const config: Config = { NODE_ENV: 'test', HOST: '127.0.0.1', PORT: 3001, APP_ORIGIN: 'http://localhost:5173', DATABASE_URL: 'mysql://unused', ALLOW_REGISTRATION: true }
-const user = { id: '123', email: 'alice@example.test', displayName: 'Alice' }
+const user = { id: '123', email: 'alice@example.test', displayName: 'Alice', role: 'user' as const }
 const unused = async (): Promise<never> => { throw new Error('Protected service should not have been called') }
 
 test('HTTP rejects anonymous requests, foreign origins and malformed inputs', async t => {

@@ -24,7 +24,7 @@ type View = { kind: 'group' } | { kind: 'person'; id: string } | { kind: 'person
   | { kind: 'entry-form'; person?: SelectedPerson; entry?: Entry; returnPersonId?: string }
 const tabs = [{ id: 'people', name: 'People', Icon: UsersRound }, { id: 'entries', name: 'Entries', Icon: FileText }, { id: 'reminders', name: 'Reminders', Icon: Bell }, { id: 'groups', name: 'Subgroups', Icon: Folder }] as const
 
-export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
+export const GroupPage = ({ user, onLogout, onAdmin }: { user: User; onLogout: () => void; onAdmin: () => void }) => {
   const { t } = useTranslation()
   const [rawGroups, setGroups] = useState<Group[]>([])
   const groups = rawGroups.map(group => group.isPersonal ? { ...group, name: t('Personal') } : group)
@@ -68,6 +68,7 @@ export const GroupPage = ({ user, onLogout }: { user: User; onLogout: () => void
   while (ancestor) { breadcrumbs.unshift(ancestor); ancestor = groups.find(group => group.id === ancestor?.parentId) }
   const children = groups.filter(group => group.parentId === selectedId)
   return <div className="min-h-screen flex flex-col">
+    {user.role === 'admin' && <nav aria-label={t('Administration')} className="bg-surface border-b border-line px-4 sm:px-6 lg:px-10 py-2"><button className="text-sm text-accent underline underline-offset-4" onClick={onAdmin}>{t('Administration')}</button></nav>}
     <header className="h-16 sm:h-20 px-4 sm:px-6 lg:px-10 bg-surface border-b border-line flex items-center justify-between gap-4"><a href="/" className="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight text-accent"><Network size={26} aria-hidden="true" />Memties</a><div className="flex items-center gap-2 sm:gap-4"><span className="text-sm hidden sm:block">{user.displayName}</span><PreferencesButton authenticated /><button className="secondary text-sm" aria-label={t('Sign out')} disabled={signingOut} onClick={logout}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{signingOut ? t("Signing out…") : t("Sign out")}</span></button></div></header>
     <div className="flex-1 grid lg:grid-cols-[minmax(260px,1fr)_2fr]">
       <aside className="hidden lg:block bg-subtle border-r border-line p-7 min-w-0">

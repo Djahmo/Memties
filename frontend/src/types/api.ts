@@ -1,4 +1,4 @@
-export type User = { id: string; email: string; displayName: string }
+export type User = { id: string; email: string; displayName: string; role?: 'admin' | 'user' }
 export type Group = {
   id: string
   name: string

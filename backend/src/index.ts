@@ -17,7 +17,7 @@ import { createTransferService } from './services/transfer.js'
 
 const config = readConfig()
 const { db, pool } = connectDatabase(config.DATABASE_URL)
-const auth = createAuthService(db)
+const auth = createAuthService(db, config.ADMIN_EMAILS)
 const app = await createApp(config, {
   db,
   push: createPushService(db),

@@ -7,6 +7,7 @@ import type { Database } from '../db/index.js'
 import { oauthRecords } from '../db/schema.js'
 import type { Config } from '../config.js'
 import { createTokenService } from '../auth/tokens.js'
+import { ServiceError } from '../services/errors.js'
 
 const secret = () => randomBytes(32).toString('base64url')
 const digest = (value: string) => createHash('sha256').update(value).digest('base64url')
@@ -48,6 +49,7 @@ export const oauthRoutes = async (app: FastifyInstance, db: Database, config: Co
   // OAuth endpoints use protocol error responses, never redirect unvalidated input.
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof z.ZodError) return reply.code(400).send({ error: 'invalid_request' })
+    if (error instanceof ServiceError && error.statusCode === 403) return reply.code(400).send({ error: 'invalid_grant' })
     request.log.error({ err: error }, 'OAuth request failed')
     return reply.code(500).send({ error: 'server_error' })
   })

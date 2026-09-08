@@ -13,7 +13,8 @@ export const createTokenService = (db: Database) => ({
     const id = randomUUID()
     const expiresAt = new Date(Date.now() + input.days * 86400000)
     await db.transaction(async tx => {
-      await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
+      const [account] = await tx.select({ status: users.status }).from(users).where(eq(users.id, userId)).for('update')
+      if (!account || account.status !== 'active') throw new ServiceError(403, 'This account is suspended.')
       const active = await tx.select({ id: apiTokens.id }).from(apiTokens).where(and(eq(apiTokens.userId, userId), gt(apiTokens.expiresAt, new Date())))
       if (active.length >= 20) throw new ServiceError(409, 'Revoke an existing token before creating another.')
       await tx.insert(apiTokens).values({ id, tokenHash: hash(token), userId, name: input.name, access: input.access, expiresAt })
@@ -27,7 +28,8 @@ export const createTokenService = (db: Database) => ({
   authenticate: async (token: string | undefined) => {
     if (!token || !/^mem_[a-f0-9]{64}$/.test(token)) return null
     const [row] = await db.select({ userId: apiTokens.userId, access: apiTokens.access }).from(apiTokens)
-      .where(and(eq(apiTokens.tokenHash, hash(token)), gt(apiTokens.expiresAt, new Date()))).limit(1)
+      .innerJoin(users, eq(users.id, apiTokens.userId))
+      .where(and(eq(apiTokens.tokenHash, hash(token)), gt(apiTokens.expiresAt, new Date()), eq(users.status, 'active'))).limit(1)
     return row ?? null
   },
 })

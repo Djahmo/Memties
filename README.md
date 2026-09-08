@@ -81,7 +81,13 @@ Authentication rate limiting is in-process; behind a proxy, attempts share its I
 
 Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, optionally `SMTP_USER`/`SMTP_PASSWORD`, and `SMTP_SECURE=true` for implicit TLS (usually port 465). Otherwise STARTTLS is required (usually port 587). Users explicitly choose email notification on each reminder. The worker checks once per minute and retries delivery failures after five minutes. A crash after SMTP acceptance but before the database commit can produce a duplicate notification. The application must remain running to deliver reminders.
 
-### LDAP and SAML
+### User administration
+
+Set `ADMIN_EMAILS=admin@example.com,other@example.com` in the application environment file. Matching account emails receive the administrator role (case-insensitive); other accounts are users. Roles are derived from this configuration on login and session validation, so editing the list and restarting/recreating the application also updates existing sessions. Use trusted account email addresses; this setting does not create accounts or verify ownership of an email address.
+
+Administrators can open **Administration** to list users, their sign-in methods and creation dates, and suspend/reactivate accounts. Suspension revokes sessions and API/MCP tokens and prevents new logins or token issuance. Reactivation requires a new login and new API tokens. Existing private vault permissions remain unchanged. Administrators cannot suspend themselves or other configured administrators; remove the target email from `ADMIN_EMAILS` and restart first. Docker applies the new user-status migration at startup; back up the database before deploying.
+
+### LDAP and SAML configuration
 
 Set `SAML_ONLY=true` in the application environment to allow only SAML sign-in. This hides password forms and registration and blocks local login, registration, and LDAP endpoints. A configured SAML entry point is required at startup. The default is false; existing sessions remain valid. The SAML button is labelled “Connexion rapide” in French.
 
