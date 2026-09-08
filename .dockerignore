@@ -3,6 +3,7 @@
 **/.env
 **/.env.*
 **/secrets
+**/certificate
 **/*.key
 **/*.pem
 .git

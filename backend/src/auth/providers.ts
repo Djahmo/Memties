@@ -23,8 +23,8 @@ const attribute = (value: unknown): string => {
 export const createProviderService = async (db: Database, auth: ReturnType<typeof createAuthService>, config: Config) => {
   const samlKeys = config.SAML_ENTRY_POINT ? {
     idpCert: await readFile(config.SAML_IDP_CERT_FILE!, 'utf8'),
-    privateKey: await readFile(config.SAML_SP_KEY_FILE!, 'utf8'),
-    publicCert: await readFile(config.SAML_SP_CERT_FILE!, 'utf8'),
+    privateKey: config.SAML_SP_KEY_FILE ? await readFile(config.SAML_SP_KEY_FILE, 'utf8') : undefined,
+    publicCert: config.SAML_SP_CERT_FILE ? await readFile(config.SAML_SP_CERT_FILE, 'utf8') : undefined,
   } : null
   const lifetime = 10 * 60000
   type Store = Pick<Database, 'select' | 'insert' | 'delete'>

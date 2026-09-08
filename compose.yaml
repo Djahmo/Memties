@@ -29,6 +29,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ${APP_CERTIFICATE_DIR:-/opt/memties/certificate}
+        target: /app/backend/certificate
+        read_only: true
+        bind:
+          create_host_path: true
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0

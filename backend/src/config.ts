@@ -42,7 +42,8 @@ const schema = z.object({
     [value.VAPID_PUBLIC_KEY || value.VAPID_PRIVATE_KEY || value.VAPID_SUBJECT, ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']],
     [value.SMTP_HOST, ['SMTP_FROM']],
     [value.LDAP_URL, ['LDAP_BIND_DN', 'LDAP_BIND_PASSWORD', 'LDAP_BASE_DN']],
-    [value.SAML_ENTRY_POINT, ['SAML_IDP_ISSUER', 'SAML_IDP_CERT_FILE', 'SAML_SP_KEY_FILE', 'SAML_SP_CERT_FILE']],
+    [value.SAML_ENTRY_POINT, ['SAML_IDP_ISSUER', 'SAML_IDP_CERT_FILE']],
+    [value.SAML_SP_KEY_FILE || value.SAML_SP_CERT_FILE, ['SAML_SP_KEY_FILE', 'SAML_SP_CERT_FILE']],
   ] as const) {
     if (enabled) for (const field of required) if (!value[field]) context.addIssue({ code: 'custom', path: [field], message: 'Required when this integration is enabled' })
   }
