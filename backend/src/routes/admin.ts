@@ -19,4 +19,11 @@ export const adminRoutes = async (app: FastifyInstance, service: ReturnType<type
     request.log.info({ actorId: request.user!.id, userId: id, status }, 'Administrator changed account status')
     return result
   })
+  app.delete('/api/admin/users/:id', async request => {
+    const { id } = z.object({ id: z.uuid() }).parse(request.params)
+    const { email } = z.object({ email: z.email().max(254) }).strict().parse(request.body)
+    const result = await service.remove(request.user!.id, id, email)
+    request.log.info({ actorId: request.user!.id, userId: id }, 'Administrator deleted account and data')
+    return result
+  })
 }

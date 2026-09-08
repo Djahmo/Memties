@@ -1,8 +1,9 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, like, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '../db/index.js'
-import { apiTokens, identities, sessions, users } from '../db/schema.js'
+import { apiTokens, entries, entryPeople, groupMembers, groups, identities, oauthRecords, people, personGroups, reminders, samlRequests, sessions, users } from '../db/schema.js'
 import { accountRole, administratorEmails } from '../auth/admin.js'
 import { ServiceError } from './errors.js'
+import { lockAccess } from './access.js'
 
 export const createAdminService = (db: Database, adminEmails = '') => {
   const admins = administratorEmails(adminEmails)
@@ -26,6 +27,66 @@ export const createAdminService = (db: Database, adminEmails = '') => {
         await tx.delete(sessions).where(eq(sessions.userId, userId))
         await tx.delete(apiTokens).where(eq(apiTokens.userId, userId))
       }
+      return { success: true }
+    }),
+    remove: async (actorId: string, userId: string, email: string) => db.transaction(async tx => {
+      const { nodes } = await lockAccess(tx, userId)
+      const [account] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
+      if (!account) throw new ServiceError(404, 'User not found.')
+      if (actorId === userId || accountRole(account.email, admins) === 'admin') throw new ServiceError(403, 'Administrator accounts cannot be deleted.')
+      if (account.status !== 'suspended') throw new ServiceError(409, 'Suspend the account before deleting it.')
+      if (email.trim().toLowerCase() !== account.email.toLowerCase()) throw new ServiceError(400, 'The confirmation email does not match.')
+      const memberships = await tx.select().from(groupMembers)
+      const children = new Map<string, string[]>()
+      for (const node of nodes) if (node.parentId) children.set(node.parentId, [...children.get(node.parentId) ?? [], node.id])
+      const subtree = (id: string) => {
+        const result = [id]
+        const visited = new Set(result)
+        for (let index = 0; index < result.length; index++) for (const child of children.get(result[index]!) ?? []) {
+          if (visited.has(child)) throw new ServiceError(409, 'Invalid group hierarchy.')
+          visited.add(child); result.push(child)
+        }
+        return result
+      }
+      const deletedGroups = new Set<string>()
+      for (const node of nodes) {
+        if (node.personalOwnerId === userId) for (const id of subtree(node.id)) deletedGroups.add(id)
+        if (node.parentId || node.personalOwnerId || !memberships.some(member => member.groupId === node.id && member.userId === userId && member.role === 'owner')) continue
+        const ids = subtree(node.id)
+        if (memberships.some(member => ids.includes(member.groupId) && member.userId !== userId)) continue
+        const [otherEntry] = await tx.select({ id: entries.id }).from(entries).where(and(inArray(entries.groupId, ids), ne(entries.creatorId, userId))).limit(1)
+        const [otherPerson] = await tx.select({ id: people.id }).from(people).innerJoin(personGroups, eq(personGroups.personId, people.id))
+          .where(and(inArray(personGroups.groupId, ids), ne(people.creatorId, userId))).limit(1)
+        if (!otherEntry && !otherPerson) for (const id of ids) deletedGroups.add(id)
+      }
+      const byId = new Map(nodes.map(node => [node.id, node]))
+      for (const node of nodes) {
+        if (deletedGroups.has(node.id)) continue
+        const chain = new Set<string>()
+        let current: typeof node | undefined = node
+        while (current && !chain.has(current.id)) { chain.add(current.id); current = current.parentId ? byId.get(current.parentId) : undefined }
+        const owners = memberships.filter(member => chain.has(member.groupId) && member.role === 'owner')
+        if (owners.some(owner => owner.userId === userId) && !owners.some(owner => owner.userId !== userId)) throw new ServiceError(409, 'Assign another owner to shared groups before deleting this account.')
+      }
+      const groupIds = [...deletedGroups]
+      const entryIds = (await tx.select({ id: entries.id }).from(entries).where(or(eq(entries.creatorId, userId), groupIds.length ? inArray(entries.groupId, groupIds) : undefined))).map(row => row.id)
+      const personIds = (await tx.select({ id: people.id }).from(people).where(eq(people.creatorId, userId))).map(row => row.id)
+      await tx.delete(reminders).where(or(eq(reminders.creatorId, userId), entryIds.length ? inArray(reminders.entryId, entryIds) : undefined))
+      if (entryIds.length) await tx.delete(entries).where(inArray(entries.id, entryIds))
+      if (personIds.length) {
+        await tx.delete(entryPeople).where(inArray(entryPeople.personId, personIds))
+        await tx.delete(people).where(inArray(people.id, personIds))
+      }
+      if (groupIds.length) {
+        await tx.delete(personGroups).where(inArray(personGroups.groupId, groupIds))
+        // Detach the deleted hierarchy first to satisfy the self-referencing foreign key.
+        await tx.update(groups).set({ parentId: null }).where(inArray(groups.id, groupIds))
+        await tx.delete(groups).where(inArray(groups.id, groupIds))
+      }
+      await tx.delete(samlRequests).where(and(like(samlRequests.id, 'flow:%'), eq(samlRequests.value, userId)))
+      await tx.delete(oauthRecords).where(and(like(oauthRecords.id, 'code:%'), sql`JSON_UNQUOTE(JSON_EXTRACT(${oauthRecords.value}, '$.userId')) = ${userId}`))
+      // Identity, membership, session, API-token and push-subscription rows cascade.
+      await tx.delete(users).where(eq(users.id, userId))
       return { success: true }
     }),
   }

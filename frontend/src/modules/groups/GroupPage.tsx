@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Bell } from 'lucide-react'
+import { Bell, ShieldCheck } from 'lucide-react'
 import { disablePush } from '../reminders/push'
 import { ReminderList } from '../reminders/ReminderList'
 import { useEffect, useState } from 'react'
@@ -68,8 +68,7 @@ export const GroupPage = ({ user, onLogout, onAdmin }: { user: User; onLogout: (
   while (ancestor) { breadcrumbs.unshift(ancestor); ancestor = groups.find(group => group.id === ancestor?.parentId) }
   const children = groups.filter(group => group.parentId === selectedId)
   return <div className="min-h-screen flex flex-col">
-    {user.role === 'admin' && <nav aria-label={t('Administration')} className="bg-surface border-b border-line px-4 sm:px-6 lg:px-10 py-2"><button className="text-sm text-accent underline underline-offset-4" onClick={onAdmin}>{t('Administration')}</button></nav>}
-    <header className="h-16 sm:h-20 px-4 sm:px-6 lg:px-10 bg-surface border-b border-line flex items-center justify-between gap-4"><a href="/" className="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight text-accent"><Network size={26} aria-hidden="true" />Memties</a><div className="flex items-center gap-2 sm:gap-4"><span className="text-sm hidden sm:block">{user.displayName}</span><PreferencesButton authenticated /><button className="secondary text-sm" aria-label={t('Sign out')} disabled={signingOut} onClick={logout}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{signingOut ? t("Signing out…") : t("Sign out")}</span></button></div></header>
+    <header className="h-16 sm:h-20 px-4 sm:px-6 lg:px-10 bg-surface border-b border-line flex items-center justify-between gap-4"><a href="/" className="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight text-accent"><Network size={26} aria-hidden="true" />Memties</a><div className="flex items-center gap-2 sm:gap-4"><span className="text-sm hidden sm:block">{user.displayName}</span>{user.role === 'admin' && <button className="secondary text-sm" aria-label={t('Administration')} title={t('Administration')} onClick={onAdmin}><ShieldCheck size={16} aria-hidden="true" /><span className="hidden sm:inline">{t('Administration')}</span></button>}<PreferencesButton authenticated /><button className="secondary text-sm" aria-label={t('Sign out')} disabled={signingOut} onClick={logout}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{signingOut ? t("Signing out…") : t("Sign out")}</span></button></div></header>
     <div className="flex-1 grid lg:grid-cols-[minmax(260px,1fr)_2fr]">
       <aside className="hidden lg:block bg-subtle border-r border-line p-7 min-w-0">
         <div className="flex justify-between items-center mb-5"><h2 className="eyebrow">{t("Your groups")}</h2><button disabled={loading || !!error} className="secondary text-sm" onClick={() => { setForm({ mode: 'create', parent: null }); setNotice('') }}><Plus size={16} aria-hidden="true" />{t("New group")}</button></div>

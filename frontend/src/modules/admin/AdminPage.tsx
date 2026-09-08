@@ -16,6 +16,8 @@ export const AdminPage = ({ onBack }: { onBack: () => void }) => {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [deleting, setDeleting] = useState<Account | null>(null)
+  const [confirmation, setConfirmation] = useState('')
   useEffect(() => {
     let active = true
     api<Page<Account>>(`/admin/users?offset=${offset}`).then(value => { if (active) setPage(value) })
@@ -33,6 +35,16 @@ export const AdminPage = ({ onBack }: { onBack: () => void }) => {
       setNotice(status === 'suspended' ? 'Account suspended. Sessions and API tokens revoked.' : 'Account reactivated.')
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
   }
+  const remove = async () => {
+    if (!deleting) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api(`/admin/users/${deleting.id}`, { method: 'DELETE', body: { email: confirmation.trim() } })
+      setDeleting(null); setConfirmation('')
+      setNotice('Account and data deleted.')
+      load(page.items.length === 1 && offset > 0 ? offset - 50 : offset)
+    } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
+  }
   return <main className="min-h-screen bg-subtle p-4 sm:p-8">
     <div className="max-w-6xl mx-auto">
       <header className="flex items-center justify-between gap-4 mb-8"><button className="secondary" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />{t('Back to Memties')}</button><PreferencesButton authenticated /></header>
@@ -41,6 +53,15 @@ export const AdminPage = ({ onBack }: { onBack: () => void }) => {
       <p className="muted mt-3 mb-6">{t('Manage account access. Personal vaults remain private.')}</p>
       {error && <p role="alert" className="error mb-4">{t(error)} <button className="underline" disabled={busy} onClick={() => load(offset)}>{t('Retry')}</button></p>}
       {notice && <p role="status" className="text-accent mb-4">{t(notice)}</p>}
+      {deleting && <section className="card mb-6 space-y-4 border-red-500" aria-labelledby="delete-account-title">
+        <h2 id="delete-account-title" className="text-lg font-semibold">{t('Permanently delete {{name}}?', { name: deleting.displayName })}</h2>
+        <p>{t('This permanently deletes the account and its data. This cannot be undone.')}</p>
+        <p>{t('Contacts and entries created by this account will also disappear from shared groups. Other members will lose access to them.')}</p>
+        <form onSubmit={event => { event.preventDefault(); void remove() }} className="space-y-4">
+          <label className="field-label">{t('Type {{email}} to confirm', { email: deleting.email })}<input className="input-field" type="email" autoComplete="off" value={confirmation} disabled={busy} onChange={event => setConfirmation(event.target.value)} required /></label>
+          <div className="flex gap-3 flex-wrap"><button className="primary" disabled={busy || confirmation.trim().toLowerCase() !== deleting.email.toLowerCase()} type="submit">{t('Delete permanently')}</button><button className="secondary" type="button" disabled={busy} onClick={() => { setDeleting(null); setConfirmation('') }}>{t('Cancel')}</button></div>
+        </form>
+      </section>}
       {loading ? <p role="status">{t('Loading users…')}</p> : <>
         <div className="card overflow-x-auto">
           <table className="w-full text-sm text-left"><thead><tr className="border-b border-line">{['User', 'Role', 'Sign-in methods', 'Created', 'Status', 'Actions'].map(label => <th key={label} scope="col" className="p-3 font-semibold whitespace-nowrap">{t(label)}</th>)}</tr></thead>
@@ -50,7 +71,7 @@ export const AdminPage = ({ onBack }: { onBack: () => void }) => {
               <td className="p-3">{account.methods.map(method => method === 'local' ? t('Local account') : method.toUpperCase()).join(', ') || '—'}</td>
               <td className="p-3 whitespace-nowrap">{new Date(account.createdAt).toLocaleDateString(i18n.language)}</td>
               <td className="p-3"><span className="badge">{t(account.status === 'active' ? 'Active' : 'Suspended')}</span></td>
-              <td className="p-3"><button className="secondary whitespace-nowrap" disabled={busy || (account.role === 'admin' && account.status === 'active')} aria-label={t(account.status === 'active' ? 'Suspend {{name}}' : 'Reactivate {{name}}', { name: account.displayName })} onClick={() => { void update(account) }}>{t(account.status === 'active' ? 'Suspend' : 'Reactivate')}</button></td>
+              <td className="p-3"><div className="flex gap-2 flex-wrap"><button className="secondary whitespace-nowrap" disabled={busy || !!deleting || (account.role === 'admin' && account.status === 'active')} aria-label={t(account.status === 'active' ? 'Suspend {{name}}' : 'Reactivate {{name}}', { name: account.displayName })} onClick={() => { void update(account) }}>{t(account.status === 'active' ? 'Suspend' : 'Reactivate')}</button>{account.status === 'suspended' && account.role !== 'admin' && <button className="secondary text-red-600" disabled={busy || !!deleting} aria-label={t('Delete {{name}}', { name: account.displayName })} onClick={() => { setDeleting(account); setConfirmation(''); setError(''); setNotice('') }}>{t('Delete')}</button>}</div></td>
             </tr>)}</tbody>
           </table>
           {!page.items.length && <p className="muted p-4">{t('No users found.')}</p>}
