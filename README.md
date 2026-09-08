@@ -89,6 +89,8 @@ Administrators can open **Administration** to list users, their sign-in methods 
 
 ### LDAP and SAML configuration
 
+Suspended non-administrator accounts can be permanently deleted from Administration after confirming their email. This removes their contacts and entries, including shared contributions and dependent reminders, their private group tree, memberships, credentials and tokens. Other users' contributions in surviving shared groups are retained. Exclusive shared group trees with no other members or contributions are removed; groups used by others must retain another owner or deletion is refused. Deletion is transactional and does not remove data from existing backups or from Universe. An identity still allowed by Universe can create a new empty Memties account on a later login; keep the account suspended or revoke its Universe access to prevent this.
+
 Set `SAML_ONLY=true` in the application environment to allow only SAML sign-in. This hides password forms and registration and blocks local login, registration, and LDAP endpoints. A configured SAML entry point is required at startup. The default is false; existing sessions remain valid. The SAML button is labelled “Connexion rapide” in French.
 
 See `backend/.env.example` for all integration variables. LDAP requires LDAPS with certificate verification, a search account, a search base, and a stable identity attribute (`entryUUID`, or `objectGUID` for Active Directory). Configure `LDAP_LOGIN_ATTRIBUTE=sAMAccountName` for AD. A successful user bind is required; the directory password is never stored. Custom certificate authorities can be configured with Node's `NODE_EXTRA_CA_CERTS`.
