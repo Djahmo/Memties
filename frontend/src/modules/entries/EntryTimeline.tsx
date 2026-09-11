@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { EntryReminders } from '../reminders/ReminderList'
 import { useState } from 'react'
-import { CalendarDays, FileText, Filter, LockKeyhole, Pencil, Search, X } from 'lucide-react'
+import { CalendarDays, FileText, Filter, LockKeyhole, Pencil, Search, Trash2, X } from 'lucide-react'
+import { api, errorMessage } from '../../services/api'
 import { useApi } from '../../hooks/useApi'
 import type { Entry, Group, Page } from '../../types/api'
 import { Pagination } from '../../components/Pagination'
@@ -17,6 +18,9 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
   const [to, setTo] = useState('')
   const [participant, setParticipant] = useState<SelectedPerson | null>(null)
   const [offset, setOffset] = useState(0)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const query = new URLSearchParams({ q, offset: String(offset) })
   if (groupId) query.set('groupId', groupId)
   if (personId) query.set('personId', personId)
@@ -24,6 +28,18 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
   if (from) query.set('from', new Date(`${from}T00:00:00`).toISOString())
   if (to) query.set('to', new Date(`${to}T23:59:59.999`).toISOString())
   const { data, error, loading, reload } = useApi<Page<Entry>>(`/entries?${query}`)
+  const remove = async (id: string) => {
+    if (busy) return
+    setBusy(true)
+    setDeleteError('')
+    try {
+      await api<{ success: boolean }>(`/entries/${id}`, { method: 'DELETE' })
+      setDeletingId(null)
+      if (data?.items.length === 1 && offset > 0) setOffset(0)
+      reload()
+    } catch (error) { setDeleteError(errorMessage(error)) }
+    finally { setBusy(false) }
+  }
   return <section aria-label={t("Entry history")} className="space-y-4">
     <label className="flex items-center gap-3"><Search size={18} className="muted" aria-hidden="true" /><span className="sr-only">{t("Search entries")}</span><input className="input-field" value={q} maxLength={200} placeholder={t("Search entries…")} onChange={event => { setQ(event.target.value); setOffset(0) }} /></label>
     <details className="rounded-lg border border-line p-4"><summary className="cursor-pointer text-sm font-medium"><Filter size={16} className="inline mr-2" aria-hidden="true" />{t("Filter history")}</summary><div className="mt-4 grid sm:grid-cols-2 gap-4">
@@ -41,6 +57,15 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
       <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
       {!!entry.people.length && <div className="mt-4 flex flex-wrap gap-2">{entry.people.map(person => <button key={person.id} className="text-xs border border-line rounded-full px-3 py-1 hover:(bg-soft border-strongline)" onClick={() => onPerson(person.id)}>{person.displayName}</button>)}</div>}
       <EntryReminders entryId={entry.id} canCreate={entry.canEdit} />
+      {entry.canEdit && <div className="mt-4 border-t border-line pt-4">
+        {deletingId === entry.id ? <fieldset disabled={busy} className="space-y-3">
+          <p className="text-sm">{t('Permanently delete {{name}}?', { name: entry.title })}</p>
+          <p className="muted text-sm">{t('This entry and all its reminders will be permanently deleted. Linked contacts will be kept.')}</p>
+          <div className="flex flex-wrap gap-3"><button type="button" className="secondary text-errorink" onClick={() => { void remove(entry.id) }}><Trash2 size={16} aria-hidden="true" />{t('Confirm deletion')}</button><button type="button" className="secondary" onClick={() => { setDeletingId(null); setDeleteError('') }}>{t('Cancel')}</button></div>
+          {busy && <p role="status" className="muted text-sm">{t('Deleting…')}</p>}
+          {deleteError && <p role="alert" className="error">{t(deleteError)}</p>}
+        </fieldset> : <button type="button" className="secondary text-errorink" disabled={busy} aria-label={t('Delete {{name}}', { name: entry.title })} onClick={() => { setDeletingId(entry.id); setDeleteError('') }}><Trash2 size={16} aria-hidden="true" />{t('Delete entry')}</button>}
+      </div>}
     </article>)}</div> : <div className="border border-dashed border-strongline rounded-xl text-center p-10"><FileText size={32} className="mx-auto text-icon" aria-hidden="true" /><h3 className="font-semibold mt-4">{t("No entries in this view")}</h3><p className="muted text-sm mt-2">{t("Add your first memory, or adjust the filters.")}</p></div>}<Pagination offset={offset} nextOffset={data.nextOffset} onChange={setOffset} /></>}
   </section>
 }

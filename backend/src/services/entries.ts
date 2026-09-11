@@ -42,6 +42,16 @@ export const createEntryService = (db: ServiceDatabase) => {
   }
   return {
     get,
+    remove: async (userId: string, id: string) => {
+      await db.transaction(async tx => {
+        const access = await lockAccess(tx, userId)
+        const entry = await requireEntry(access, id, tx)
+        requireGroup(access, entry.groupId, true)
+        await tx.delete(reminders).where(eq(reminders.entryId, id))
+        await tx.delete(entries).where(eq(entries.id, id))
+      })
+      return { success: true }
+    },
     list: async (userId: string, input: HistoryInput) => {
       const access = await loadAccess(db, userId)
       const scope = groupScope(access, input.groupId)
