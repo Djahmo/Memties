@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { createPeopleService } from '../services/people.js'
 import type { createEntryService } from '../services/entries.js'
 import { entryInput, historyInput, listInput, personInput } from '../services/content-input.js'
+import { tagInput } from '../services/tags.js'
 import { ServiceError } from '../services/errors.js'
 
 export type ContentServices = { people: ReturnType<typeof createPeopleService>; entries: ReturnType<typeof createEntryService> }
@@ -12,10 +13,15 @@ export const contentRoutes = async (app: FastifyInstance, services: ContentServi
   app.addHook('preHandler', async request => {
     if (!request.user) throw new ServiceError(401, 'Please sign in.')
   })
+  app.get('/api/tags', async request => services.entries.tags.list(request.user!.id))
+  app.post('/api/tags', async (request, reply) => reply.code(201).send(await services.entries.tags.create(request.user!.id, tagInput.parse(request.body))))
+  app.patch('/api/tags/:id', async request => services.entries.tags.update(request.user!.id, identifier.parse(request.params).id, tagInput.parse(request.body)))
+  app.patch('/api/entries/:id/tag', async request => services.entries.setTag(request.user!.id, identifier.parse(request.params).id, z.object({ tagId: z.uuid().nullable() }).strict().parse(request.body).tagId))
   app.get('/api/people', async request => services.people.list(request.user!.id, listInput.parse(request.query)))
   app.get('/api/people/:id', async request => services.people.get(request.user!.id, identifier.parse(request.params).id))
   app.post('/api/people', async (request, reply) => reply.code(201).send(await services.people.create(request.user!.id, personInput.parse(request.body))))
   app.patch('/api/people/:id', async request => services.people.update(request.user!.id, identifier.parse(request.params).id, personInput.parse(request.body)))
+  app.patch('/api/entries/:id/archive', async request => services.entries.setArchived(request.user!.id, identifier.parse(request.params).id, z.object({ archived: z.boolean() }).strict().parse(request.body).archived))
   app.get('/api/entries', async request => services.entries.list(request.user!.id, historyInput.parse(request.query)))
   app.get('/api/entries/:id', async request => services.entries.get(request.user!.id, identifier.parse(request.params).id))
   app.post('/api/entries', async (request, reply) => reply.code(201).send(await services.entries.create(request.user!.id, entryInput.parse(request.body))))

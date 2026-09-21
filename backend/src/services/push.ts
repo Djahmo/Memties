@@ -54,7 +54,8 @@ export const startReminderPush = (app: FastifyInstance, db: Database, config: Co
         const access = await loadAccess(tx, row.creatorId)
         if (!entry || !access.permissions.has(entry.groupId)) return true
         const subscriptions = await tx.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, row.creatorId))
-        let failed = subscriptions.length === 0
+        let delivered = false
+        let failed = false
         for (const subscription of subscriptions) {
           try {
             pushEndpoint.parse(subscription.endpoint)
@@ -62,13 +63,14 @@ export const startReminderPush = (app: FastifyInstance, db: Database, config: Co
               title: 'Memties', body: row.language === 'fr' ? 'Un rappel vous attend dans Memties.' : 'A reminder is waiting in Memties.',
               tag: `reminder-${row.id}`,
             }), { vapidDetails, TTL: 3600, timeout: 10000 })
+            delivered = true
           } catch (error) {
             if (error instanceof webpush.WebPushError && [404, 410].includes(error.statusCode)) {
               await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.endpointHash, subscription.endpointHash))
             } else { failed = true; app.log.warn('Reminder push delivery failed; retrying later') }
           }
         }
-        if (!failed) await tx.update(reminders).set({ pushNotifiedAt: new Date() }).where(eq(reminders.id, row.id))
+        if (delivered && !failed) await tx.update(reminders).set({ pushNotifiedAt: new Date() }).where(eq(reminders.id, row.id))
         return true
       })
       if (!processed) break

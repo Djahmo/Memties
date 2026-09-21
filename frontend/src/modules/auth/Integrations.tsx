@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, Link2, Trash2 } from 'lucide-react'
+import { Check, Copy, KeyRound, Link2, Trash2 } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import { useApi } from '../../hooks/useApi'
 
@@ -10,6 +10,15 @@ export const TokenSettings = () => {
   const { t, i18n } = useTranslation()
   const { data, error: loadError, reload } = useApi<Token[]>('/tokens')
   const [secret, setSecret] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
+  const copyUrl = async () => {
+    setCopied(false); setCopyError(false)
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/api/mcp`)
+      setCopied(true)
+    } catch { setCopyError(true) }
+  }
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [revokeId, setRevokeId] = useState<string | null>(null)
@@ -28,14 +37,24 @@ export const TokenSettings = () => {
     try { await api(`/tokens/${id}`, { method: 'DELETE' }); setRevokeId(null); setSecret(''); reload() }
     catch (cause) { setError(errorMessage(cause)) } finally { setBusy(false) }
   }
-  return <section className="border-t border-line mt-6 pt-5 space-y-4">
-    <h3 className="font-semibold flex items-center gap-2"><KeyRound size={18} />{t('MCP access')}</h3>
-    <h4 className="font-medium">{t('Connect ChatGPT with OAuth')}</h4>
-    <p className="text-sm muted">{t('In ChatGPT developer mode, add a plugin with this server URL and choose OAuth. Leave the optional client ID and secret empty, then sign in to Memties and approve access.')}</p>
-    <label className="field-label">{t('Server URL')}<input className="input-field text-xs" readOnly value={`${window.location.origin}/api/mcp`} onFocus={event => event.target.select()} /></label>
-    <p className="text-sm muted">{t('OAuth access lasts 30 days. Reconnect after expiry, or revoke access below at any time.')}</p>
+  return <section className="space-y-5">
+    <h4 className="font-semibold flex items-center gap-2"><KeyRound size={18} />{t('MCP access')}</h4>
+    <h5 className="font-medium">{t('Connect with OAuth')}</h5>
+    <p className="text-sm muted">{t('Add this URL to your compatible MCP client and choose OAuth. Leave optional client credentials empty, then sign in and approve access.')}</p>
+    <div className="space-y-2">
+      <label className="field-label" htmlFor="mcp-url">{t('Server URL')}</label>
+      <div className="flex flex-wrap items-center gap-2">
+        <input id="mcp-url" className="input-field text-xs flex-1 basis-48" readOnly value={`${window.location.origin}/api/mcp`} onFocus={event => event.target.select()} />
+        <button type="button" className="secondary" onClick={() => { void copyUrl() }} aria-label={t('Copy MCP URL')}>
+          {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}{t(copied ? 'Copied' : 'Copy')}
+        </button>
+      </div>
+      <p role="status" className="text-sm text-accent">{copied ? t('URL copied.') : ''}</p>
+      {copyError && <p role="alert" className="error">{t('Could not copy. Select the URL and copy it manually.')}</p>}
+    </div>
+    <p className="text-sm muted">{t('Access lasts 30 days. Reconnect when it expires.')}</p>
     <details className="border border-line rounded-lg p-3" onToggle={event => { if (!event.currentTarget.open) setSecret('') }}>
-    <summary className="cursor-pointer font-medium">{t('Advanced / other clients')}</summary>
+    <summary className="cursor-pointer font-medium">{t('Personal tokens')}</summary>
     <div className="space-y-3 mt-3">
     <p className="text-sm muted">{t('For scripts and clients that accept a personal token, use Streamable HTTP with Bearer authentication. Tokens can access your visible data, including Personal. Keep them secret.')}</p>
     <form onSubmit={create}><fieldset disabled={busy} className="space-y-3">
@@ -46,9 +65,11 @@ export const TokenSettings = () => {
     {secret && <div className="bg-warning border border-warningline rounded-lg p-3 space-y-2"><p className="text-sm">{t('Copy this token now. It will only be shown once.')}</p><input className="input-field text-xs" aria-label={t('New token')} readOnly value={secret} onFocus={event => event.target.select()} /><button className="secondary text-sm" onClick={() => setSecret('')}>{t('Hide token')}</button></div>}
     </div>
     </details>
-    <h4 className="font-medium">{t('Connections and tokens')}</h4>
-    <p className="text-sm muted">{t('Manage OAuth connections and personal tokens here. Revoking access disconnects the associated client.')}</p>
+    <h5 className="font-medium">{t('Connections and tokens')}</h5>
+    <p className="text-sm muted">{t('Revoke access to disconnect a client.')}</p>
     {(error || loadError) && <p className="error" role="alert">{t(error || loadError || '')}{loadError && <button className="underline ml-2" onClick={reload}>{t('Retry')}</button>}</p>}
+    {!data && !loadError && <p role="status" className="muted text-sm">{t('Loading connections…')}</p>}
+    {data?.length === 0 && <p className="rounded-lg bg-subtle p-4 text-sm muted">{t('No connections or tokens yet.')}</p>}
     {data?.map(token => <div key={token.id} className="border border-line rounded-lg p-3 space-y-2"><div className="flex justify-between items-start gap-2"><div className="min-w-0"><p className="font-medium break-words">{token.name}</p><p className="text-xs muted">{t(token.access === 'read' ? 'Read only' : 'Read and write')} · {new Date(token.expiresAt).toLocaleDateString(i18n.language)}</p></div><button className="secondary p-2" disabled={busy} aria-label={t('Revoke token')} onClick={() => setRevokeId(token.id)}><Trash2 size={16} /></button></div>{revokeId === token.id && <div className="flex gap-2"><button className="secondary text-errorink text-sm" disabled={busy} onClick={() => { void revoke(token.id) }}>{t('Confirm revocation')}</button><button className="secondary text-sm" disabled={busy} onClick={() => setRevokeId(null)}>{t('Cancel')}</button></div>}</div>)}
   </section>
 }
@@ -75,7 +96,7 @@ export const ProviderSettings = () => {
     catch (cause) { setError(errorMessage(cause)); setBusy(false) }
   }
   if (!data?.ldapEnabled && !data?.samlEnabled) return null
-  return <section className="border-t border-line mt-6 pt-5 space-y-4"><h3 className="font-semibold flex items-center gap-2"><Link2 size={18} />{t('Linked sign-in methods')}</h3><p className="muted text-sm">{t('Link your directory or single sign-on identity to this account to keep the same data.')}</p>
+  return <section className="border-t border-line mt-6 pt-5 space-y-4"><h4 className="font-semibold flex items-center gap-2"><Link2 size={18} />{t('Linked sign-in methods')}</h4><p className="muted text-sm">{t('Link your directory or single sign-on identity to this account to keep the same data.')}</p>
     {data.ldapEnabled && <form onSubmit={linkLdap}><fieldset disabled={busy} className="space-y-3"><label className="field-label">{t('Directory username')}<input className="input-field" name="username" autoComplete="username" maxLength={254} required /></label><label className="field-label">{t('Directory password')}<input className="input-field" type="password" name="password" autoComplete="current-password" maxLength={256} required /></label><button className="secondary" type="submit">{t('Link directory account')}</button></fieldset></form>}
     {data.samlEnabled && <button className="secondary" disabled={busy} onClick={() => { void linkSaml() }}>{t('Link single sign-on')}</button>}
     {error && <p className="error" role="alert">{t(error)}</p>}{notice && <p className="text-sm text-accent" role="status">{t(notice)}</p>}

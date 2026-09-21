@@ -1,24 +1,29 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, exists, gte, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, gte, inArray, isNull, isNotNull, lte, or, sql } from 'drizzle-orm'
 import type { Database, ServiceDatabase } from '../db/index.js'
-import { entries, entryPeople, people, reminders, users } from '../db/schema.js'
+import { entries, entryPeople, entryTags, tags, people, reminders, users } from '../db/schema.js'
 import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
 import { requirePerson, visiblePersonIds } from './people.js'
 import { ServiceError } from './errors.js'
 import type { EntryInput, HistoryInput } from './content-input.js'
+import { assignEntryTag, createTagService } from './tags.js'
 import { searchPattern } from './content-input.js'
 
 export const createEntryService = (db: ServiceDatabase) => {
-  const present = async (access: Access, rows: typeof entries.$inferSelect[]) => {
+  const present = async (userId: string, access: Access, rows: typeof entries.$inferSelect[]) => {
     if (!rows.length) return []
-    const [participants, creators] = await Promise.all([
+    const [participants, creators, labels] = await Promise.all([
       db.select({ entryId: entryPeople.entryId, id: people.id, displayName: people.displayName }).from(entryPeople)
         .innerJoin(people, eq(people.id, entryPeople.personId))
         .where(and(inArray(entryPeople.entryId, rows.map(entry => entry.id)), inArray(people.id, visiblePersonIds(db, access)))),
       db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, [...new Set(rows.map(entry => entry.creatorId))])),
+      db.select({ entryId: entryTags.entryId, id: tags.id, name: tags.name, color: tags.color }).from(entryTags)
+        .innerJoin(tags, eq(tags.id, entryTags.tagId))
+        .where(and(eq(entryTags.userId, userId), eq(tags.userId, userId), inArray(entryTags.entryId, rows.map(entry => entry.id)))),
     ])
     return rows.map(entry => ({ ...entry,
+      tag: labels.filter(tag => tag.entryId === entry.id).map(({ id, name, color }) => ({ id, name, color }))[0] ?? null,
       creatorName: creators.find(user => user.id === entry.creatorId)?.displayName ?? '',
       people: participants.filter(person => person.entryId === entry.id).map(person => ({ id: person.id, displayName: person.displayName })),
       canEdit: access.permissions.get(entry.groupId)?.role !== 'viewer',
@@ -38,10 +43,27 @@ export const createEntryService = (db: ServiceDatabase) => {
   }
   const get = async (userId: string, id: string) => {
     const access = await loadAccess(db, userId)
-    return (await present(access, [await requireEntry(access, id)]))[0]
+    return (await present(userId, access, [await requireEntry(access, id)]))[0]
   }
   return {
     get,
+    tags: createTagService(db),
+    setTag: async (userId: string, id: string, tagId: string | null) => {
+      await db.transaction(async tx => {
+        await requireEntry(await lockAccess(tx, userId), id, tx)
+        await assignEntryTag(tx, userId, id, tagId)
+      })
+      return get(userId, id)
+    },
+    setArchived: async (userId: string, id: string, archived: boolean) => {
+      await db.transaction(async tx => {
+        const access = await lockAccess(tx, userId)
+        const entry = await requireEntry(access, id, tx)
+        requireGroup(access, entry.groupId, true)
+        await tx.update(entries).set({ archivedAt: archived ? entry.archivedAt ?? new Date() : null, updatedAt: new Date() }).where(eq(entries.id, id))
+      })
+      return get(userId, id)
+    },
     list: async (userId: string, input: HistoryInput) => {
       const access = await loadAccess(db, userId)
       const scope = groupScope(access, input.groupId)
@@ -51,24 +73,26 @@ export const createEntryService = (db: ServiceDatabase) => {
       const participantFilter = (personId: string | undefined) => personId
         ? exists(db.select({ id: entryPeople.entryId }).from(entryPeople).where(and(eq(entryPeople.entryId, entries.id), eq(entryPeople.personId, personId)))) : undefined
       const rows = await db.select().from(entries).where(and(
+        input.archive === 'all' ? undefined : input.archive === 'archived' ? isNotNull(entries.archivedAt) : isNull(entries.archivedAt),
         inArray(entries.groupId, scope), participantFilter(input.personId), participantFilter(input.participantId),
         input.from ? gte(entries.occurredAt, input.from) : undefined,
         input.to ? lte(entries.occurredAt, input.to) : undefined,
         input.q ? or(sql`${entries.title} like ${pattern} escape '!'`, sql`${entries.body} like ${pattern} escape '!'`) : undefined,
       )).orderBy(desc(entries.occurredAt), desc(entries.id)).offset(input.offset).limit(input.limit + 1)
-      return { items: await present(access, rows.slice(0, input.limit)), nextOffset: rows.length > input.limit ? input.offset + input.limit : null }
+      return { items: await present(userId, access, rows.slice(0, input.limit)), nextOffset: rows.length > input.limit ? input.offset + input.limit : null }
     },
     create: async (userId: string, input: EntryInput, source: 'web' | 'mcp' = 'web') => {
       const access = await loadAccess(db, userId)
       requireGroup(access, input.groupId, true)
       await validatePeople(access, input.personIds)
-      const { personIds, reminder, ...fields } = input
+      const { personIds, reminder, tagId, ...fields } = input
       const id = randomUUID()
       await db.transaction(async tx => {
         const current = await lockAccess(tx, userId)
         requireGroup(current, input.groupId, true)
         await validatePeople(current, personIds, tx)
         await tx.insert(entries).values({ id, ...fields, creatorId: userId, source })
+        await assignEntryTag(tx, userId, id, tagId)
         if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
         if (reminder) await tx.insert(reminders).values({ id: randomUUID(), entryId: id, creatorId: userId, ...reminder, notifyByPush: reminder.notifyByPush ? 'yes' : 'no', notifyByEmail: reminder.notifyByEmail ? 'yes' : 'no' })
       })
@@ -81,7 +105,7 @@ export const createEntryService = (db: ServiceDatabase) => {
       requireGroup(access, previous.groupId, true)
       requireGroup(access, input.groupId, true)
       await validatePeople(access, input.personIds)
-      const { personIds, reminder: _reminder, ...fields } = input
+      const { personIds, reminder: _reminder, tagId, ...fields } = input
       await db.transaction(async tx => {
         const current = await lockAccess(tx, userId)
         const locked = await requireEntry(current, id, tx)
@@ -92,6 +116,7 @@ export const createEntryService = (db: ServiceDatabase) => {
         if (!result.affectedRows) throw new ServiceError(409, 'This entry was moved. Reload it before editing.')
         // Editing a visible entry must not remove or reveal participants inaccessible to this reader.
         await tx.delete(entryPeople).where(and(eq(entryPeople.entryId, id), inArray(entryPeople.personId, visiblePersonIds(tx, current))))
+        await assignEntryTag(tx, userId, id, tagId)
         if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
       })
       return get(userId, id)

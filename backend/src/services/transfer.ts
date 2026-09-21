@@ -5,14 +5,15 @@ import { createPeopleService } from './people.js'
 import { createEntryService } from './entries.js'
 import { createReminderService } from './reminders.js'
 import { entryInput, historyInput, listInput, personInput, reminderInput, reminderListInput } from './content-input.js'
+import { createTagService } from './tags.js'
 import { lockAccess } from './access.js'
 import { ServiceError } from './errors.js'
 
 const groupRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(120), description: z.string().max(2000), parentId: z.uuid().nullable() }).strict()
 const personRecord = personInput.extend({ id: z.uuid() })
-const entryRecord = entryInput.omit({ reminder: true }).extend({ id: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), source: z.enum(['web', 'mcp']) })
+const entryRecord = entryInput.omit({ reminder: true }).extend({ id: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), source: z.enum(['web', 'mcp']), archivedAt: z.iso.datetime({ offset: true }).nullable().default(null) })
 const reminderRecord = reminderInput.omit({ notifyByPush: true, notifyByEmail: true, language: true }).extend({ id: z.uuid(), dueAt: z.iso.datetime({ offset: true }), status: z.enum(['pending', 'completed']) })
-const tagRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(80), groupIds: z.array(z.uuid()).max(10000), personIds: z.array(z.uuid()).max(10000) }).strict()
+const tagRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(80), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#3b82f6'), groupIds: z.array(z.uuid()).max(10000), personIds: z.array(z.uuid()).max(10000) }).strict()
 export const transferInput = z.object({
   format: z.literal('memties'), version: z.literal(1), exportedAt: z.iso.datetime({ offset: true }),
   groups: z.array(groupRecord).max(10000), people: z.array(personRecord).max(10000),
@@ -39,7 +40,8 @@ const validateRelations = (data: MemtiesExport) => {
     return values
   }
   const groupIds = ids(data.groups), personIds = ids(data.people), entryIds = ids(data.entries)
-  ids(data.reminders); ids(data.tags)
+  ids(data.reminders)
+  const tagIds = ids(data.tags)
   const requireId = (set: Set<string>, id: string) => { if (!set.has(id)) throw new ServiceError(400, 'Invalid import relationships.') }
   const ordered: MemtiesExport['groups'] = []
   const children = new Map<string | null, MemtiesExport['groups']>()
@@ -57,6 +59,7 @@ const validateRelations = (data: MemtiesExport) => {
   for (const person of data.people) for (const id of person.groupIds) requireId(groupIds, id)
   for (const entry of data.entries) {
     requireId(groupIds, entry.groupId)
+    if (entry.tagId) requireId(tagIds, entry.tagId)
     for (const id of entry.personIds) requireId(personIds, id)
     entryInput.parse({ title: entry.title, body: entry.body, occurredAt: entry.occurredAt, groupId: entry.groupId, personIds: entry.personIds })
   }
@@ -75,13 +78,13 @@ export const createTransferService = (db: ServiceDatabase) => {
   const snapshot = async (userId: string): Promise<MemtiesExport> => {
     const groups = await createGroupService(db).list(userId)
     const people = await collect(offset => createPeopleService(db).list(userId, listInput.parse({ offset, limit: 100 })))
-    const entries = await collect(offset => createEntryService(db).list(userId, historyInput.parse({ offset, limit: 100 })))
+    const entries = await collect(offset => createEntryService(db).list(userId, historyInput.parse({ offset, limit: 100, archive: 'all' })))
     const reminders = await collect(offset => createReminderService(db).list(userId, reminderListInput.parse({ offset, limit: 100, status: 'all' })))
     return transferInput.parse({ format: 'memties', version: 1, exportedAt: new Date().toISOString(),
       groups: groups.map(({ id, name, description, parentId }) => ({ id, name, description, parentId })),
       people: people.map(({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds }) => ({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds })),
-      entries: entries.map(({ id, title, body, occurredAt, groupId, people, source }) => ({ id, title, body, occurredAt: occurredAt.toISOString(), groupId, personIds: people.map(person => person.id), source })),
-      reminders: reminders.map(({ id, title, dueAt, entryId, status }) => ({ id, title, dueAt: dueAt.toISOString(), entryId, status })), tags: [],
+      entries: entries.map(({ id, title, body, occurredAt, groupId, people, source, archivedAt, tag }) => ({ id, title, body, occurredAt: occurredAt.toISOString(), groupId, personIds: people.map(person => person.id), tagId: tag?.id ?? null, source, archivedAt: archivedAt?.toISOString() ?? null })),
+      reminders: reminders.map(({ id, title, dueAt, entryId, status }) => ({ id, title, dueAt: dueAt.toISOString(), entryId, status })), tags: (await createTagService(db).list(userId)).map(tag => ({ ...tag, groupIds: [], personIds: [] })),
     })
   }
   const preview = async (userId: string, data: MemtiesExport) => {
@@ -106,7 +109,7 @@ export const createTransferService = (db: ServiceDatabase) => {
     import: async (userId: string, data: MemtiesExport) => db.transaction(async tx => {
       await lockAccess(tx, userId)
       const ordered = validateRelations(data)
-      if (data.tags.length) throw new ServiceError(400, 'Tag import is not available yet.')
+      if (data.tags.some(tag => tag.groupIds.length || tag.personIds.length)) throw new ServiceError(400, 'Only entry tags are supported.')
       const groups = createGroupService(tx), people = createPeopleService(tx), entries = createEntryService(tx), reminders = createReminderService(tx)
       const personal = (await groups.list(userId)).find(group => group.isPersonal)
       if (!personal) throw new ServiceError(403, 'Personal vault unavailable.')
@@ -125,8 +128,12 @@ export const createTransferService = (db: ServiceDatabase) => {
         const created = await people.create(userId, { ...person, groupIds: person.groupIds.map(id => mapped(mapping.groups, id)) })
         mapping.people.set(id, created.id)
       }
-      for (const { id, source, ...entry } of data.entries) {
-        const created = await entries.create(userId, entryInput.parse({ ...entry, groupId: mapped(mapping.groups, entry.groupId), personIds: entry.personIds.map(id => mapped(mapping.people, id)) }), source)
+      for (const tag of data.tags) {
+        mapping.tags.set(tag.id, (await createTagService(tx).create(userId, { name: tag.name, color: tag.color })).id)
+      }
+      for (const { id, source, archivedAt, ...entry } of data.entries) {
+        const created = await entries.create(userId, entryInput.parse({ ...entry, tagId: entry.tagId ? mapped(mapping.tags, entry.tagId) : null, groupId: mapped(mapping.groups, entry.groupId), personIds: entry.personIds.map(id => mapped(mapping.people, id)) }), source)
+        if (archivedAt) await entries.setArchived(userId, created.id, true)
         mapping.entries.set(id, created.id)
       }
       for (const reminder of data.reminders) {

@@ -31,6 +31,7 @@ export const entryInput = z.object({
   occurredAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).refine(value => value.getUTCFullYear() >= 1000 && value.getUTCFullYear() <= 9999, 'Date must be between years 1000 and 9999'),
   groupId: z.uuid(), personIds: ids.default([]),
   reminder: reminderFields.optional(),
+  tagId: z.uuid().nullable().optional(),
 }).strict()
 
 export const listInput = z.object({
@@ -40,6 +41,7 @@ export const listInput = z.object({
 }).strict()
 
 export const historyInput = listInput.extend({
+  archive: z.enum(['active', 'archived', 'all']).default('active'),
   personId: z.uuid().optional(), participantId: z.uuid().optional(),
   from: z.iso.datetime({ offset: true }).transform(value => new Date(value)).optional(),
   to: z.iso.datetime({ offset: true }).transform(value => new Date(value)).optional(),

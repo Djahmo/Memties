@@ -30,15 +30,22 @@ export const PushSettings = () => {
       await navigator.serviceWorker.register('/sw.js')
       const registration = await navigator.serviceWorker.ready
       const key = Uint8Array.from(atob(data.publicKey.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
-      const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      let subscription = await registration.pushManager.getSubscription()
+      const currentKey = subscription?.options.applicationServerKey
+      if (subscription && (!currentKey || currentKey.byteLength !== key.byteLength ||
+        !key.every((value, index) => value === new Uint8Array(currentKey)[index]))) {
+        await disablePush()
+        subscription = null
+      }
+      subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
       try { await api('/push/subscriptions', { method: 'POST', body: subscription.toJSON() }) }
       catch (cause) { await subscription.unsubscribe(); throw cause }
       setEnabled(true)
     } catch (cause) { setError(cause instanceof DOMException ? 'Could not enable notifications. Please try again.' : errorMessage(cause)) }
     finally { setBusy(false) }
   }
-  return <section className="border-t border-line pt-5 space-y-3">
-    <h3 className="font-semibold">{t('Push notifications')}</h3>
+  return <section className="space-y-4">
+    <h4 className="font-semibold">{t('Push notifications')}</h4>
     <p className="muted text-sm">{t('Enable this device, then choose push on each reminder. Notifications contain no private content.')}</p>
     {!supported ? <p className="muted text-sm">{t('Push requires a compatible browser and HTTPS. On iPhone or iPad, add Memties to your Home Screen and open it from there.')}</p> : <>
       {data && !data.publicKey && <p className="muted text-sm">{t('Push notifications are not configured.')}</p>}

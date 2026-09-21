@@ -141,3 +141,9 @@ location ^~ /.well-known/ {
 ```
 
 `APP_ORIGIN` must match the public HTTPS origin. Existing Bearer tokens remain supported.
+
+### Personal entry tags
+
+Each user can create tags with a name (up to 80 characters) and a custom color, then assign one tag per entry from the editor or history list. A colored bar and named badge identify the category. Tags and assignments are private to the user, including on shared entries; readers can categorize accessible entries without editing shared content. Renaming or recoloring a tag updates all of that user's associated entries. Choosing “No tag” removes the association. Tags apply only to entries, not reminders or contacts.
+
+JSON exports include personal tags and entry associations. Imports create new tags and map associations to the imported entry copies. Older exports without colors remain supported. Apply migration `0007` with `pnpm --dir backend db:migrate` before deploying this version.

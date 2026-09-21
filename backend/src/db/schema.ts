@@ -67,6 +67,7 @@ export const entries = mysqlTable('entries', {
   occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
   groupId: varchar('group_id', { length: 36 }).notNull().references(() => groups.id, { onDelete: 'restrict' }),
   creatorId: varchar('creator_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'restrict' }),
+  archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
   source: mysqlEnum('source', ['web', 'mcp']).notNull().default('web'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
@@ -124,3 +125,16 @@ export const pushSubscriptions = mysqlTable('push_subscriptions', {
   p256dh: varchar('p256dh', { length: 100 }).notNull(),
   auth: varchar('auth', { length: 30 }).notNull(),
 }, table => [index('push_user').on(table.userId)])
+
+export const tags = mysqlTable('tags', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 80 }).notNull(),
+  color: varchar('color', { length: 7 }).notNull(),
+}, table => [index('tag_user').on(table.userId)])
+
+export const entryTags = mysqlTable('entry_tags', {
+  entryId: varchar('entry_id', { length: 36 }).notNull().references(() => entries.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tagId: varchar('tag_id', { length: 36 }).notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, table => [primaryKey({ columns: [table.entryId, table.userId] }), index('entry_tag').on(table.tagId)])

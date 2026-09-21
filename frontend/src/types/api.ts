@@ -17,8 +17,11 @@ export type Person = {
 }
 
 export type GroupMember = { userId: string; displayName: string; email: string; role: Group['role']; directRole: Group['role'] | null; inheritedRole: Group['role'] | null }
+export type Tag = { id: string; name: string; color: string }
 export type Entry = {
+  tag: Tag | null
   id: string; title: string; body: string; occurredAt: string; groupId: string
+  archivedAt: string | null
   creatorId: string; creatorName: string; source: 'web' | 'mcp'
   people: { id: string; displayName: string }[]; canEdit: boolean
   createdAt: string; updatedAt: string

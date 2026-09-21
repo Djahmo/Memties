@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { ReminderDateFields } from '../reminders/ReminderDateFields'
 import { useTranslation } from 'react-i18next'
 import { Bell, Check, Pencil, Plus, RotateCcw } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
@@ -10,10 +11,6 @@ import type { Page } from '../../types/api'
 type Reminder = {
   id: string; entryId: string; entryTitle: string; title: string; dueAt: string; status: 'pending' | 'completed'
   canEdit: boolean; canNotify: boolean; notifyByPush: boolean; notifyByEmail: boolean
-}
-const localTime = (value: string) => {
-  const date = new Date(value)
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
 export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: { groupId?: string; personId?: string; entryId?: string; canCreate?: boolean }) => {
@@ -48,7 +45,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
     setBusy(true); setError('')
     try {
       await api(editing === 'new' ? '/reminders' : `/reminders/${editing.id}`, { method: editing === 'new' ? 'POST' : 'PATCH', body: {
-        title: String(form.get('title')).trim(), dueAt: new Date(String(form.get('dueAt'))).toISOString(),
+        title: String(form.get('title')).trim(), dueAt: new Date(`${form.get('reminderDate')}T${form.get('reminderTime')}`).toISOString(),
         ...(editing === 'new' ? { entryId } : {}),
         ...((editing === 'new' || editing.canNotify) && config?.pushEnabled ? { notifyByPush: form.get('push') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } : {}),
         ...((editing === 'new' || editing.canNotify) && config?.mailEnabled ? { notifyByEmail: form.get('notify') === 'on', language: i18n.language.startsWith('fr') ? 'fr' : 'en' } : {}),
@@ -67,7 +64,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
     </div>
     {editing && <form key={current?.id ?? 'new'} onSubmit={submit} className="rounded-lg bg-soft p-4"><fieldset disabled={busy} className="space-y-3">
       <label className="field-label">{t('Reminder title')}<input className="input-field" autoFocus name="title" maxLength={240} required defaultValue={current?.title} /></label>
-      <label className="field-label">{t('Due date')}<input className="input-field" type="datetime-local" name="dueAt" required defaultValue={current ? localTime(current.dueAt) : ''} /></label>
+      <ReminderDateFields dueAt={current?.dueAt} />
       {(editing === 'new' || current?.canNotify) && config?.mailEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="notify" className="mt-1" defaultChecked={current?.notifyByEmail} />{t('Email me when due')}</label>}
       {(editing === 'new' || current?.canNotify) && config?.pushEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="push" className="mt-1" defaultChecked={current?.notifyByPush} />{t('Push me when due')}</label>}
       {config?.pushEnabled && <p className="muted text-xs">{t('Enable notifications on your devices in App settings.')}</p>}
