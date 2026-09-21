@@ -24,6 +24,7 @@ export const contentRoutes = async (app: FastifyInstance, services: ContentServi
   app.patch('/api/entries/:id/archive', async request => services.entries.setArchived(request.user!.id, identifier.parse(request.params).id, z.object({ archived: z.boolean() }).strict().parse(request.body).archived))
   app.get('/api/entries', async request => services.entries.list(request.user!.id, historyInput.parse(request.query)))
   app.get('/api/entries/:id', async request => services.entries.get(request.user!.id, identifier.parse(request.params).id))
+  app.delete('/api/entries/:id', async request => services.entries.remove(request.user!.id, identifier.parse(request.params).id))
   app.post('/api/entries', async (request, reply) => reply.code(201).send(await services.entries.create(request.user!.id, entryInput.parse(request.body))))
   app.patch('/api/entries/:id', async request => services.entries.update(request.user!.id, identifier.parse(request.params).id, entryInput.parse(request.body)))
 }

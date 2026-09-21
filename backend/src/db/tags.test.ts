@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { eq, inArray } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/mysql2/migrator'
 import { connectDatabase } from './index.js'
-import { entries, groups, users } from './schema.js'
+import { entries, entryTags, groups, users } from './schema.js'
 import { createAuthService } from '../auth/service.js'
 import { createGroupService } from '../services/groups.js'
 import { createSharingService } from '../services/sharing.js'
@@ -77,4 +77,10 @@ test('MySQL: personal tags, foreign ownership, reassignment and JSON round trip'
   assert.equal((await service.get(owner.user.id, entry.id)).tag?.id, hr.id)
   const privateEntry = await service.create(owner.user.id, entryInput.parse({ title: 'Private', groupId: (await createGroupService(db).list(owner.user.id)).find(group => group.isPersonal)!.id, occurredAt: new Date().toISOString() }))
   await assert.rejects(service.setTag(reader.user.id, privateEntry.id, finance.id), { statusCode: 404 })
+  await service.setArchived(owner.user.id, entry.id, true)
+  await assert.rejects(service.remove(reader.user.id, entry.id), { statusCode: 403 })
+  await service.remove(owner.user.id, entry.id)
+  await assert.rejects(service.get(owner.user.id, entry.id), { statusCode: 404 })
+  assert.equal((await db.select().from(entryTags).where(eq(entryTags.entryId, entry.id))).length, 0)
+  assert.ok((await tags.list(owner.user.id)).some(tag => tag.id === hr.id))
 })
