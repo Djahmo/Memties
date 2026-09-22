@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { PreferencesButton } from '../../components/PreferencesButton'
 import { api, errorMessage } from '../../services/api'
 import type { User } from '../../types/api'
 
 export const OAuthConsent = ({ user }: { user: User }) => {
+  const { t } = useTranslation()
   const [query] = useState(() => new URLSearchParams(window.location.search).get('oauth') ?? '')
   const [client, setClient] = useState<{ name: string; destination: string; scope: string } | null>(null)
   const [error, setError] = useState('')
@@ -25,21 +28,22 @@ export const OAuthConsent = ({ user }: { user: User }) => {
     } catch (error) { setError(errorMessage(error)); setBusy(false) }
   }
   return <main className="min-h-screen grid place-items-center p-6">
+    <div className="absolute right-5 top-5"><PreferencesButton /></div>
     <section className="card max-w-lg space-y-5">
-      <h1 className="text-2xl font-semibold">Autoriser une connexion à Memties</h1>
-      <p>Compte : {user.email}</p>
+      <h1 className="text-2xl font-semibold">{t('Authorize a connection to Memties')}</h1>
+      <p>{t('Account: {{email}}', { email: user.email })}</p>
       {client && <>
-        <p><strong>{client.name}</strong> demande à accéder à vos données Memties.</p>
-        <p>Destination : {client.destination}</p>
-        <p>{client.scope.split(' ').includes('memties:write') ? 'Lecture et modification de vos contacts, souvenirs et rappels.' : 'Lecture de vos contacts, souvenirs et rappels.'} Cela inclut votre espace Personal et les groupes auxquels vous avez accès.</p>
-        <p>Accès valable 30 jours, révocable dans les paramètres Memties, rubrique Accès MCP → Connexions et jetons.</p>
+        <p>{t('{{name}} is requesting access to your Memties data.', { name: client.name })}</p>
+        <p>{t('Destination: {{destination}}', { destination: client.destination })}</p>
+        <p>{t(client.scope.split(' ').includes('memties:write') ? 'Read and edit your contacts, entries and reminders.' : 'Read your contacts, entries and reminders.')} {t('This includes your Personal vault and the groups you can access.')}</p>
+        <p>{t('Access lasts 30 days. Revoke it in Settings → Developer → Connections and tokens.')}</p>
         <div className="flex gap-3">
-          <button className="primary" disabled={busy} onClick={() => void decide(true)}>Autoriser</button>
-          <button className="secondary" disabled={busy} onClick={() => void decide(false)}>Refuser</button>
+          <button className="primary" disabled={busy} onClick={() => void decide(true)}>{t('Authorize')}</button>
+          <button className="secondary" disabled={busy} onClick={() => void decide(false)}>{t('Deny')}</button>
         </div>
       </>}
-      {!client && !error && <p role="status">Chargement…</p>}
-      {error && <p role="alert">{error}</p>}
+      {!client && !error && <p role="status">{t('Loading connection…')}</p>}
+      {error && <p role="alert">{t(error)}</p>}
     </section>
   </main>
 }

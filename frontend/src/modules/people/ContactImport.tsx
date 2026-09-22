@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, errorMessage } from '../../services/api'
 
@@ -10,6 +10,8 @@ export const ContactImport = ({ groupId, onImported }: { groupId: string; onImpo
   const [selected, setSelected] = useState<number[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [fileName, setFileName] = useState('')
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
   const preview = async (file: File) => {
     setBusy(true); setError(''); setRows(null); setResult(null)
@@ -29,7 +31,9 @@ export const ContactImport = ({ groupId, onImported }: { groupId: string; onImpo
   }
   return <details className="border border-line rounded-lg p-3 mt-4"><summary className="cursor-pointer text-sm text-accent">{t('Import contacts (VCF)')}</summary>
     <div className="space-y-3 mt-3"><p className="text-sm muted">{t('vCard 3.0 / 4.0. Import into the current group. Likely duplicates are skipped without merging.')}</p>
-      <input type="file" accept=".vcf,.vcard,text/vcard" disabled={busy} aria-label={t('Contact file')} onChange={event => { const file = event.target.files?.[0]; if (file) void preview(file); event.target.value = '' }} />
+      <button type="button" className="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>{t('Choose contact file')}</button>
+      {fileName && <p className="text-sm muted break-words">{fileName}</p>}
+      <input ref={fileInput} hidden type="file" accept=".vcf,.vcard,text/vcard" disabled={busy} aria-label={t('Contact file')} onChange={event => { const file = event.target.files?.[0]; if (file) { setFileName(file.name); void preview(file) } event.target.value = '' }} />
       {rows && <><div className="max-h-80 overflow-auto space-y-2">{rows.map(row => <label key={row.index} className="flex gap-2 border-b border-line py-2 text-sm"><input type="checkbox" disabled={busy || !row.valid || row.duplicate} checked={selected.includes(row.index)} onChange={event => setSelected(current => event.target.checked ? [...current, row.index] : current.filter(index => index !== row.index))} /><span><strong>{row.contact.displayName}</strong><span className="block">{[row.contact.firstName, row.contact.lastName, row.contact.email, row.contact.phone, row.contact.organization].filter(Boolean).join(' · ')}</span>{(!row.valid || row.duplicate) && <span className="muted">{t(row.duplicate ? 'Likely duplicate — skipped' : 'Invalid contact — skipped')}</span>}</span></label>)}</div>
         <button className="primary" disabled={busy || !selected.length} onClick={() => { void commit() }}>{t('Import selected contacts')} ({selected.length})</button></>}
       {result && <p role="status">{t('Imported: {{imported}}. Skipped: {{skipped}}.', result)}</p>}

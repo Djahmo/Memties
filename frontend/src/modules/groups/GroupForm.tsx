@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { GroupActions } from './GroupActions'
 import { GroupColorPicker } from './GroupColorPicker'
 import { useEffect, useRef, useState } from 'react'
+import { Check, Users, X } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { Group } from '../../types/api'
 import { api, errorMessage } from '../../services/api'
@@ -11,6 +12,8 @@ export const GroupForm = ({ existing, onSaved, onCancel }: { existing: Group; on
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [color, setColor] = useState(existing.color)
+  const [name, setName] = useState(existing.name)
+  const [description, setDescription] = useState(existing.description ?? '')
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { dialog.current?.showModal() }, [])
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -29,15 +32,30 @@ export const GroupForm = ({ existing, onSaved, onCancel }: { existing: Group; on
     if (event.target !== event.currentTarget || busy) return
     const bounds = event.currentTarget.getBoundingClientRect()
     if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onCancel()
-  }} aria-labelledby="group-form-title" className="m-auto w-[94vw] max-w-xl max-h-[90dvh] overflow-auto rounded-xl border border-line bg-surface text-ink p-6 backdrop:bg-black/50">
-    <h2 id="group-form-title" className="text-xl font-semibold mb-6">{t('Group settings')}</h2>
-    <form onSubmit={submit}><fieldset disabled={busy} className="space-y-5">
-      <label className="field-label">{t("Name")}<input className="input-field" autoFocus name="name" defaultValue={existing.name} maxLength={120} required /></label>
+  }} aria-labelledby="group-form-title" aria-describedby="group-form-description" className="m-auto w-[94vw] max-w-2xl max-h-[90dvh] overflow-auto rounded-2xl border border-line bg-surface text-ink p-5 sm:p-8 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm">
+    <header className="flex items-start gap-4 sm:gap-5 mb-8">
+      <span className="hidden sm:flex size-16 shrink-0 items-center justify-center rounded-full bg-selected text-accent"><Users size={30} aria-hidden="true" /></span>
+      <div className="flex-1 min-w-0">
+        <h2 id="group-form-title" className="text-xl sm:text-2xl font-semibold">{t('Edit group')}</h2>
+        <p id="group-form-description" className="muted mt-2 leading-relaxed">{t('Customize the appearance and information of your group.')}</p>
+      </div>
+      <button type="button" className="size-11 shrink-0 flex items-center justify-center rounded-lg text-muted hover:bg-hover" aria-label={t('Close')} disabled={busy} onClick={onCancel}><X size={24} aria-hidden="true" /></button>
+    </header>
+    <form onSubmit={submit}><fieldset disabled={busy} className="space-y-7">
+      <div>
+        <label className="field-label">{t('Group name')}<input className="input-field py-3.5" autoFocus name="name" value={name} onChange={event => setName(event.target.value)} maxLength={120} required aria-describedby="group-name-count" /></label>
+        <p id="group-name-count" className="text-right text-sm muted mt-2">{name.length}/120</p>
+      </div>
       <GroupColorPicker color={color} onChange={setColor} disabled={busy} />
-      <label className="field-label">{t("Description")} <span className="muted font-normal">{t("(optional)")}</span><textarea className="input-field resize-y" name="description" defaultValue={existing?.description} maxLength={2000} rows={4} /></label>
+      <div>
+        <label className="field-label">{t('Description')} <span className="muted font-normal">{t('(optional)')}</span><textarea className="input-field resize-y" name="description" value={description} onChange={event => setDescription(event.target.value)} placeholder={t('Add a short description of the group…')} maxLength={2000} rows={4} aria-describedby="group-description-count" /></label>
+        <p id="group-description-count" className="text-right text-sm muted mt-2">{description.length}/2000</p>
+      </div>
       {error && <p role="alert" className="error">{t(error)}</p>}
-      <div className="flex gap-3"><button className="primary" type="submit">{busy ? t("Saving…") : t("Save changes")}</button><button type="button" className="secondary" onClick={onCancel}>{t("Cancel")}</button></div>
+      <footer className="flex flex-wrap items-start justify-between gap-4 border-t border-line pt-6">
+        <GroupActions key={existing.id} group={existing} />
+        <div className="flex gap-3 ml-auto"><button type="button" className="secondary" onClick={onCancel}>{t('Cancel')}</button><button className="primary" type="submit"><Check size={20} aria-hidden="true" />{busy ? t('Saving…') : t('Save')}</button></div>
+      </footer>
     </fieldset></form>
-      <GroupActions key={existing.id} group={existing} />
     </dialog>
 }
