@@ -1,4 +1,5 @@
 import type { Group } from '../../types/api'
+import { compareGroups } from './groupDrag'
 
 export const groupLabel = (groups: Group[], id: string) => {
   const names: string[] = []
@@ -20,7 +21,7 @@ export const groupRows = (groups: Group[]) => {
     children.set(parentId, [...children.get(parentId) ?? [], group])
   }
   for (const siblings of children.values()) {
-    siblings.sort((a, b) => Number(b.isPersonal) - Number(a.isPersonal) || a.name.localeCompare(b.name))
+    siblings.sort(compareGroups)
   }
   const pending = [...children.get(null) ?? []].reverse().map(group => ({ group, depth: 0 }))
   const rows: { group: Group; depth: number }[] = []

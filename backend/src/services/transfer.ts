@@ -9,7 +9,7 @@ import { createTagService } from './tags.js'
 import { lockAccess } from './access.js'
 import { ServiceError } from './errors.js'
 
-const groupRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(120), description: z.string().max(2000), parentId: z.uuid().nullable() }).strict()
+const groupRecord = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(120), description: z.string().max(2000), parentId: z.uuid().nullable(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), position: z.number().finite().optional() }).strict()
 const personRecord = personInput.extend({ id: z.uuid() })
 const entryRecord = entryInput.omit({ reminder: true }).extend({ id: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), source: z.enum(['web', 'mcp']), archivedAt: z.iso.datetime({ offset: true }).nullable().default(null) })
 const reminderRecord = reminderInput.omit({ notifyByPush: true, notifyByEmail: true, language: true }).extend({ id: z.uuid(), dueAt: z.iso.datetime({ offset: true }), status: z.enum(['pending', 'completed']) })
@@ -50,6 +50,7 @@ const validateRelations = (data: MemtiesExport) => {
     const siblings = children.get(group.parentId) ?? []
     siblings.push(group); children.set(group.parentId, siblings)
   }
+  for (const siblings of children.values()) siblings.sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name))
   const pending = [...children.get(null) ?? []]
   for (let index = 0; index < pending.length; index++) {
     const group = pending[index]!
@@ -81,7 +82,7 @@ export const createTransferService = (db: ServiceDatabase) => {
     const entries = await collect(offset => createEntryService(db).list(userId, historyInput.parse({ offset, limit: 100, archive: 'all' })))
     const reminders = await collect(offset => createReminderService(db).list(userId, reminderListInput.parse({ offset, limit: 100, status: 'all' })))
     return transferInput.parse({ format: 'memties', version: 1, exportedAt: new Date().toISOString(),
-      groups: groups.map(({ id, name, description, parentId }) => ({ id, name, description, parentId })),
+      groups: groups.map(({ id, name, description, parentId, color, position }) => ({ id, name, description, parentId, color, position })),
       people: people.map(({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds }) => ({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds })),
       entries: entries.map(({ id, title, body, occurredAt, groupId, people, source, archivedAt, tag }) => ({ id, title, body, occurredAt: occurredAt.toISOString(), groupId, personIds: people.map(person => person.id), tagId: tag?.id ?? null, source, archivedAt: archivedAt?.toISOString() ?? null })),
       reminders: reminders.map(({ id, title, dueAt, entryId, status }) => ({ id, title, dueAt: dueAt.toISOString(), entryId, status })), tags: (await createTagService(db).list(userId)).map(tag => ({ ...tag, groupIds: [], personIds: [] })),
@@ -121,7 +122,7 @@ export const createTransferService = (db: ServiceDatabase) => {
         return value
       }
       for (const group of ordered) {
-        const created = await groups.create(userId, { name: group.name, description: group.description, parentId: group.parentId ? mapped(mapping.groups, group.parentId) : root.id })
+        const created = await groups.create(userId, { name: group.name, description: group.description, color: group.color, parentId: group.parentId ? mapped(mapping.groups, group.parentId) : root.id })
         mapping.groups.set(group.id, created.id)
       }
       for (const { id, ...person } of data.people) {

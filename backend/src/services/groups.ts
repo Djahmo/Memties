@@ -4,6 +4,7 @@ import type { ServiceDatabase } from '../db/index.js'
 import { entries, groupMembers, groups, personGroups } from '../db/schema.js'
 import { ServiceError } from './errors.js'
 import { loadAccess, lockAccess, requireGroup } from './access.js'
+import { insertionPosition } from './group-order.js'
 
 export const createGroupService = (db: ServiceDatabase) => {
   const list = async (userId: string) => {
@@ -11,7 +12,7 @@ export const createGroupService = (db: ServiceDatabase) => {
     return nodes.flatMap(node => {
       const permission = access.get(node.id)
       if (!permission) return []
-      return [{ id: node.id, name: node.name, description: node.description,
+      return [{ id: node.id, name: node.name, description: node.description, color: node.color, position: node.position,
         parentId: node.parentId && access.has(node.parentId) ? node.parentId : null,
         isPersonal: node.personalOwnerId !== null, ...permission }]
     })
@@ -26,7 +27,7 @@ export const createGroupService = (db: ServiceDatabase) => {
 
   return {
     list,
-    move: async (userId: string, id: string, parentId: string | null) => {
+    move: async (userId: string, id: string, parentId: string | null, beforeId?: string | null, confirmPrivacyChange = false) => {
       await db.transaction(async tx => {
         // Serialize structural changes before checking ancestry and inherited access.
         const nodes = await tx.select().from(groups).orderBy(groups.id).for('update')
@@ -36,12 +37,12 @@ export const createGroupService = (db: ServiceDatabase) => {
         if (!node || !permission) throw new ServiceError(404, 'Group not found.')
         if (permission.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
         if (node.personalOwnerId) throw new ServiceError(403, 'The Personal vault is protected.')
-        if (parentId === node.parentId) return
+        if (parentId === node.parentId && beforeId === undefined) return
         const destination = parentId ? access.permissions.get(parentId) : undefined
-        if (parentId && !destination) throw new ServiceError(404, 'Group not found.')
-        if (destination && destination.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
-        if (permission.isPrivate !== (destination?.isPrivate ?? false)) {
-          throw new ServiceError(403, 'Groups cannot cross the Personal vault boundary.')
+        if (parentId !== node.parentId && parentId && !destination) throw new ServiceError(404, 'Group not found.')
+        if (parentId !== node.parentId && destination && destination.role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
+        if (parentId !== node.parentId && permission.isPrivate !== (destination?.isPrivate ?? false) && !confirmPrivacyChange) {
+          throw new ServiceError(403, 'Confirm the privacy change before moving this group.')
         }
         const visited = new Set<string>([id])
         let ancestor = parentId
@@ -50,12 +51,16 @@ export const createGroupService = (db: ServiceDatabase) => {
           visited.add(ancestor)
           ancestor = nodes.find(item => item.id === ancestor)?.parentId ?? null
         }
-        await tx.update(groups).set({ parentId }).where(eq(groups.id, id))
+        if (beforeId && (!access.permissions.has(beforeId) || beforeId === id)) throw new ServiceError(400, 'Invalid destination group.')
+        await tx.update(groups).set({
+          parentId,
+          position: insertionPosition(nodes.filter(item => item.parentId === parentId && item.id !== id), beforeId),
+        }).where(eq(groups.id, id))
         // A detached root needs an explicit owner after inherited access disappears.
-        if (!parentId) await tx.insert(groupMembers).values({ groupId: id, userId, role: 'owner' })
+        if (!parentId && parentId !== node.parentId) await tx.insert(groupMembers).values({ groupId: id, userId, role: 'owner' })
           .onDuplicateKeyUpdate({ set: { role: 'owner' } })
       })
-      return { success: true }
+      return { success: true, group: (await list(userId)).find(group => group.id === id)! }
     },
     remove: async (userId: string, id: string) => {
       await db.transaction(async tx => {
@@ -75,19 +80,19 @@ export const createGroupService = (db: ServiceDatabase) => {
       })
       return { success: true }
     },
-    create: async (userId: string, input: { name: string; description: string; parentId: string | null }) => {
+    create: async (userId: string, input: { name: string; description: string; parentId: string | null; color?: string }) => {
       if (input.parentId) await requireOwner(userId, input.parentId)
       const id = randomUUID()
       await db.transaction(async tx => {
         const access = await lockAccess(tx, userId)
         if (input.parentId && requireGroup(access, input.parentId).role !== 'owner') throw new ServiceError(403, 'Only an owner can manage this group.')
-        await tx.insert(groups).values({ id, ...input })
+        await tx.insert(groups).values({ id, ...input, position: insertionPosition(access.nodes.filter(group => group.parentId === input.parentId)) })
         // Child access comes exclusively from its parent at creation.
         if (!input.parentId) await tx.insert(groupMembers).values({ userId, groupId: id, role: 'owner' })
       })
       return (await list(userId)).find(group => group.id === id)!
     },
-    update: async (userId: string, id: string, input: { name: string; description: string }) => {
+    update: async (userId: string, id: string, input: { name: string; description: string; color?: string }) => {
       const group = await requireOwner(userId, id)
       if (group.isPersonal) throw new ServiceError(403, 'The Personal vault is protected.')
       await db.transaction(async tx => {

@@ -3,6 +3,8 @@ export type Group = {
   id: string
   name: string
   description: string
+  color: string
+  position: number
   parentId: string | null
   isPersonal: boolean
   isPrivate: boolean

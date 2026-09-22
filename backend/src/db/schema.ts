@@ -1,4 +1,4 @@
-import { datetime, index, mysqlEnum, mysqlTable, primaryKey, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
+import { datetime, double, index, mysqlEnum, mysqlTable, primaryKey, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
 import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core'
 
 export const users = mysqlTable('users', {
@@ -27,6 +27,8 @@ export const groups = mysqlTable('groups', {
   id: varchar('id', { length: 36 }).primaryKey(),
   name: varchar('name', { length: 120 }).notNull(),
   description: varchar('description', { length: 2000 }).notNull().default(''),
+  color: varchar('color', { length: 7 }).notNull().default('#64748b'),
+  position: double('position').notNull().default(0),
   parentId: varchar('parent_id', { length: 36 }).references((): AnyMySqlColumn => groups.id, { onDelete: 'restrict' }),
   // Only the system Personal root has this field. Children inherit its privacy.
   personalOwnerId: varchar('personal_owner_id', { length: 36 }).unique().references(() => users.id, { onDelete: 'restrict' }),

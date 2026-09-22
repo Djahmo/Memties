@@ -3,14 +3,22 @@ import { z } from 'zod'
 import type { createGroupService } from '../services/groups.js'
 import { ServiceError } from '../services/errors.js'
 
-const fields = z.object({ name: z.string().trim().min(1).max(120), description: z.string().trim().max(2000).default('') }).strict()
+const fields = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).default(''),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+}).strict()
 
 export const groupRoutes = async (app: FastifyInstance, groups: ReturnType<typeof createGroupService>) => {
   app.post('/api/groups/:id/move', async request => {
     if (!request.user) throw new ServiceError(401, 'Please sign in.')
     const { id } = z.object({ id: z.uuid() }).parse(request.params)
-    const { parentId } = z.object({ parentId: z.uuid().nullable() }).strict().parse(request.body)
-    return groups.move(request.user.id, id, parentId)
+    const { parentId, beforeId, confirmPrivacyChange } = z.object({
+      parentId: z.uuid().nullable(),
+      beforeId: z.uuid().nullable().optional(),
+      confirmPrivacyChange: z.boolean().default(false),
+    }).strict().parse(request.body)
+    return groups.move(request.user.id, id, parentId, beforeId, confirmPrivacyChange)
   })
   app.delete('/api/groups/:id', async request => {
     if (!request.user) throw new ServiceError(401, 'Please sign in.')

@@ -25,6 +25,14 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
   const [offset, setOffset] = useState(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const archiveQuery = new URLSearchParams({ archive: 'archived', limit: '1' })
+  if (groupId) archiveQuery.set('groupId', groupId)
+  if (personId) archiveQuery.set('personId', personId)
+  const { data: archivedEntries, reload: reloadArchives } = useApi<Page<Entry>>(`/entries?${archiveQuery}`)
+  if (archive === 'archived' && archivedEntries?.items.length === 0) {
+    setArchive('active')
+    setOffset(0)
+  }
   const query = new URLSearchParams({ archive, q, offset: String(offset) })
   if (groupId) query.set('groupId', groupId)
   if (personId) query.set('personId', personId)
@@ -37,6 +45,7 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
     try {
       await api(`/entries/${entry.id}/archive`, { method: 'PATCH', body: { archived: !entry.archivedAt } })
       reload()
+      reloadArchives()
     } catch (cause) { setArchiveError(errorMessage(cause)) } finally { setBusy(false) }
   }
   const setTag = async (entryId: string, tagId: string | null) => {
@@ -55,14 +64,15 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
       setDeletingId(null)
       if (data?.items.length === 1 && offset > 0) setOffset(0)
       reload()
+      reloadArchives()
     } catch (error) { setDeleteError(errorMessage(error)) }
     finally { setBusy(false) }
   }
   return <section aria-label={t("Entry history")} className="space-y-4">
-    <div className="flex gap-2" role="group" aria-label={t('Entry history')}>
+    {(archive === 'archived' || !!archivedEntries?.items.length) && <div className="flex gap-2" role="group" aria-label={t('Entry history')}>
       <button className={archive === 'active' ? 'primary' : 'secondary'} aria-pressed={archive === 'active'} onClick={() => { setArchive('active'); setOffset(0) }}>{t('Active entries')}</button>
       <button className={archive === 'archived' ? 'primary' : 'secondary'} aria-pressed={archive === 'archived'} onClick={() => { setArchive('archived'); setOffset(0) }}><Archive size={16} aria-hidden="true" />{t('Archives')}</button>
-    </div>
+    </div>}
     {archive === 'archived' && <p className="muted text-sm">{t('Archived entries remain visible to members of their group.')}</p>}
     {archiveError && <p role="alert" className="error">{t(archiveError)}</p>}
     <label className="flex items-center gap-3"><Search size={18} className="muted" aria-hidden="true" /><span className="sr-only">{t("Search entries")}</span><input className="input-field" value={q} maxLength={200} placeholder={t("Search entries…")} onChange={event => { setQ(event.target.value); setOffset(0) }} /></label>

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderTree, Plus, X } from 'lucide-react'
+import { FolderTree, X } from 'lucide-react'
 import type { Group } from '../../types/api'
 import { GroupTree } from './GroupTree'
 
-export const MobileGroups = ({ groups, selectedId, loading, onSelect, onCreate }: {
-  groups: Group[]; selectedId: string | null; loading: boolean; onSelect: (id: string) => void; onCreate: () => void
+export const MobileGroups = ({ groups, selectedId, loading, onSelect, onEdit, onCreated, onMoved }: {
+  groups: Group[]; selectedId: string | null; loading: boolean; onSelect: (id: string) => void
+  onEdit: (group: Group) => void; onCreated: (group: Group) => void
+  onMoved: (group: Group) => void
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -26,8 +28,7 @@ export const MobileGroups = ({ groups, selectedId, loading, onSelect, onCreate }
     <dialog ref={dialog} onClose={() => setOpen(false)} onClick={event => { if (event.target === event.currentTarget) close() }} aria-labelledby="mobile-groups-title" className="fixed inset-y-0 left-0 right-auto m-0 w-[min(90vw,24rem)] h-dvh max-h-dvh max-w-none p-0 bg-surface text-ink border-0 backdrop:bg-black/50">
       <div className="flex flex-col h-full p-4" onClick={event => event.stopPropagation()}>
         <div className="flex justify-between items-center gap-3 pb-4 border-b border-line"><h2 id="mobile-groups-title" className="font-semibold text-lg">{t('Your groups')}</h2><button className="secondary size-11 p-2" aria-label={t('Close')} onClick={close}><X size={20} /></button></div>
-        <div className="flex-1 min-h-0 overflow-y-auto py-3">{loading ? <p role="status" className="muted">{t('Loading your groups…')}</p> : <GroupTree groups={groups} selectedId={selectedId} onSelect={id => { onSelect(id); close() }} />}</div>
-        <button className="primary min-h-12 mb-[env(safe-area-inset-bottom)]" disabled={loading} onClick={() => { onCreate(); close() }}><Plus size={18} />{t('New group')}</button>
+        <div className="flex-1 min-h-0 overflow-y-auto py-3">{loading ? <p role="status" className="muted">{t('Loading your groups…')}</p> : open && <GroupTree groups={groups} selectedId={selectedId} onSelect={id => { onSelect(id); close() }} onEdit={group => { close(); onEdit(group) }} onCreated={onCreated} onMoved={onMoved} />}</div>
       </div>
     </dialog>
   </div>

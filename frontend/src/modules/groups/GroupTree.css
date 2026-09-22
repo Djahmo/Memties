@@ -1,0 +1,38 @@
+.group-tree-actions {
+  visibility: hidden;
+}
+
+.group-tree-row[data-dragging='true'] {
+  opacity: 0.5;
+}
+
+.group-tree-row[draggable='true'] {
+  cursor: grab;
+}
+
+.group-tree-row[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.group-tree-ghost {
+  background: var(--mem-selected);
+  border: 1px dashed var(--mem-accent);
+  opacity: 0.65;
+}
+
+.group-tree-row[data-drop-target='true'] {
+  background: var(--mem-selected);
+  outline: 2px solid var(--mem-accent);
+  outline-offset: -2px;
+}
+
+.group-tree-row[data-selected='true'] .group-tree-actions,
+.group-tree-row:has(:focus-visible) .group-tree-actions {
+  visibility: visible;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .group-tree-row:hover .group-tree-actions {
+    visibility: visible;
+  }
+}

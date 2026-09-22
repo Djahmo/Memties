@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy, KeyRound, Link2, Trash2 } from 'lucide-react'
+import { Check, Copy, KeyRound, Trash2 } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import { useApi } from '../../hooks/useApi'
 
@@ -71,34 +71,5 @@ export const TokenSettings = () => {
     {!data && !loadError && <p role="status" className="muted text-sm">{t('Loading connections…')}</p>}
     {data?.length === 0 && <p className="rounded-lg bg-subtle p-4 text-sm muted">{t('No connections or tokens yet.')}</p>}
     {data?.map(token => <div key={token.id} className="border border-line rounded-lg p-3 space-y-2"><div className="flex justify-between items-start gap-2"><div className="min-w-0"><p className="font-medium break-words">{token.name}</p><p className="text-xs muted">{t(token.access === 'read' ? 'Read only' : 'Read and write')} · {new Date(token.expiresAt).toLocaleDateString(i18n.language)}</p></div><button className="secondary p-2" disabled={busy} aria-label={t('Revoke token')} onClick={() => setRevokeId(token.id)}><Trash2 size={16} /></button></div>{revokeId === token.id && <div className="flex gap-2"><button className="secondary text-errorink text-sm" disabled={busy} onClick={() => { void revoke(token.id) }}>{t('Confirm revocation')}</button><button className="secondary text-sm" disabled={busy} onClick={() => setRevokeId(null)}>{t('Cancel')}</button></div>}</div>)}
-  </section>
-}
-
-export const ProviderSettings = () => {
-  const { t } = useTranslation()
-  const { data } = useApi<{ ldapEnabled: boolean; samlEnabled: boolean }>('/auth/config')
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [busy, setBusy] = useState(false)
-  const linkLdap = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const element = event.currentTarget
-    const form = new FormData(element)
-    setBusy(true); setError(''); setNotice('')
-    try {
-      await api('/auth/ldap', { method: 'POST', body: { username: String(form.get('username')).trim(), password: String(form.get('password')), link: true } })
-      element.reset(); setNotice('Authentication provider linked.')
-    } catch (cause) { setError(errorMessage(cause)) } finally { setBusy(false) }
-  }
-  const linkSaml = async () => {
-    setBusy(true); setError('')
-    try { window.location.assign((await api<{ url: string }>('/auth/saml/start', { method: 'POST', body: { link: true } })).url) }
-    catch (cause) { setError(errorMessage(cause)); setBusy(false) }
-  }
-  if (!data?.ldapEnabled && !data?.samlEnabled) return null
-  return <section className="border-t border-line mt-6 pt-5 space-y-4"><h4 className="font-semibold flex items-center gap-2"><Link2 size={18} />{t('Linked sign-in methods')}</h4><p className="muted text-sm">{t('Link your directory or single sign-on identity to this account to keep the same data.')}</p>
-    {data.ldapEnabled && <form onSubmit={linkLdap}><fieldset disabled={busy} className="space-y-3"><label className="field-label">{t('Directory username')}<input className="input-field" name="username" autoComplete="username" maxLength={254} required /></label><label className="field-label">{t('Directory password')}<input className="input-field" type="password" name="password" autoComplete="current-password" maxLength={256} required /></label><button className="secondary" type="submit">{t('Link directory account')}</button></fieldset></form>}
-    {data.samlEnabled && <button className="secondary" disabled={busy} onClick={() => { void linkSaml() }}>{t('Link single sign-on')}</button>}
-    {error && <p className="error" role="alert">{t(error)}</p>}{notice && <p className="text-sm text-accent" role="status">{t(notice)}</p>}
   </section>
 }
