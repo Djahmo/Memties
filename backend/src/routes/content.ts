@@ -18,6 +18,7 @@ export const contentRoutes = async (app: FastifyInstance, services: ContentServi
   app.patch('/api/tags/:id', async request => services.entries.tags.update(request.user!.id, identifier.parse(request.params).id, tagInput.parse(request.body)))
   app.patch('/api/entries/:id/tag', async request => services.entries.setTag(request.user!.id, identifier.parse(request.params).id, z.object({ tagId: z.uuid().nullable() }).strict().parse(request.body).tagId))
   app.get('/api/people', async request => services.people.list(request.user!.id, listInput.parse(request.query)))
+  app.get('/api/people/self', async request => services.people.self(request.user!.id))
   app.get('/api/people/:id', async request => services.people.get(request.user!.id, identifier.parse(request.params).id))
   app.post('/api/people', async (request, reply) => reply.code(201).send(await services.people.create(request.user!.id, personInput.parse(request.body))))
   app.patch('/api/people/:id', async request => services.people.update(request.user!.id, identifier.parse(request.params).id, personInput.parse(request.body)))

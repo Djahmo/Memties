@@ -53,7 +53,7 @@ export const PersonForm = ({ groups, groupId, existing, onSaved, onCancel }: { g
         <div className="max-h-72 overflow-auto space-y-1">
           {groupRows(groups).map(({ group, depth }) => <div key={group.id} style={{ paddingInlineStart: `${Math.min(depth, 6) * 1.25}rem` }}>
             <label className={`flex items-center gap-3 text-sm min-h-11 rounded-lg px-3 ${selected.includes(group.id) ? 'bg-selected' : 'hover:bg-soft'} ${group.role === 'viewer' ? 'text-muted' : 'cursor-pointer'}`}>
-              <input type="checkbox" className="size-4 shrink-0 accent-[#245b47]" aria-label={groupLabel(groups, group.id)} disabled={group.role === 'viewer'} checked={selected.includes(group.id)} onChange={event => setSelected(current => toggleGroupSelection(groups, current, group.id, event.target.checked))} />
+              <input type="checkbox" className="size-4 shrink-0 accent-[#245b47]" aria-label={groupLabel(groups, group.id)} disabled={group.role === 'viewer' || (existing?.isSelf && group.isPersonal)} checked={selected.includes(group.id)} onChange={event => setSelected(current => toggleGroupSelection(groups, current, group.id, event.target.checked))} />
               <span className="min-w-0 break-words">{group.name}</span>
               {group.isPrivate && <LockKeyhole className="shrink-0" size={14} aria-label={t('Private group')} />}
               {group.role === 'viewer' && <span className="ml-auto text-xs">{t('Read only')}</span>}

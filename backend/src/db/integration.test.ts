@@ -27,6 +27,7 @@ test('MySQL: administrator roles, suspension and session/token revocation', { sk
     try {
       if (ownerIds.length) {
         await db.delete(groupMembers).where(inArray(groupMembers.userId, ownerIds))
+        await db.delete(people).where(inArray(people.userId, ownerIds))
         await db.delete(groups).where(inArray(groups.personalOwnerId, ownerIds))
         await db.delete(users).where(inArray(users.id, ownerIds))
       }
@@ -259,7 +260,7 @@ test('MySQL: registration, group privacy, permissions and session revocation', {
   await db.update(groupMembers).set({ role: 'editor' }).where(and(eq(groupMembers.groupId, project.id), eq(groupMembers.userId, bob.user.id)))
   await assert.rejects(groupService.update(bob.user.id, team.id, { name: 'Changed', description: '' }), { statusCode: 403 })
   assert.equal((await groupService.update(alice.user.id, team.id, { name: 'Renamed', description: 'Context' })).name, 'Renamed')
-  assert.equal(team.color, '#64748b')
+  assert.match(team.color, /^#[0-9a-fA-F]{6}$/)
   await groupService.update(alice.user.id, team.id, { name: 'Renamed', description: 'Context', color: '#e11d48' })
   assert.equal((await groupService.list(alice.user.id)).find(group => group.id === team.id)?.color, '#e11d48')
   await groupService.update(alice.user.id, team.id, { name: 'Renamed again', description: 'Context' })
@@ -275,6 +276,7 @@ test('MySQL: registration, group privacy, permissions and session revocation', {
   assert.equal((await app.inject({ url: '/api/groups', cookies })).statusCode, 401)
 
   // Only fixtures created by this test are removed, children first.
+  await db.delete(people).where(inArray(people.userId, [alice.user.id, bob.user.id]))
   for (const id of [grandchild.id, child.id, team.id, project.id, vault.id, ...(await groupService.list(bob.user.id)).filter(group => group.isPersonal).map(group => group.id)]) {
     await db.delete(groups).where(eq(groups.id, id))
   }
@@ -308,7 +310,7 @@ test('MySQL: recursive contacts, independent entry privacy, filtered links and a
   const marie = await contacts.create(alice.user.id, personInput.parse({ displayName: 'Marie', groupIds: [finance.id] }))
   const hidden = await contacts.create(alice.user.id, personInput.parse({ displayName: 'Secret contact', groupIds: [privateChild.id] }))
   const list = await contacts.list(bob.user.id, listInput.parse({ groupId: project.id }))
-  assert.deepEqual(list.items.map(person => person.id).sort(), [thomas.id, marie.id].sort())
+  assert.deepEqual(list.items.map(person => person.id).sort(), [thomas.id, marie.id, (await contacts.self(bob.user.id)).id].sort())
   assert.equal(list.items.find(person => person.id === thomas.id)?.groupIds.includes(vault.id), false)
   await assert.rejects(contacts.get(bob.user.id, hidden.id), { statusCode: 404 })
   await assert.rejects(contacts.create(bob.user.id, personInput.parse({ displayName: 'No write', groupIds: [lab.id] })), { statusCode: 403 })
@@ -321,7 +323,7 @@ test('MySQL: recursive contacts, independent entry privacy, filtered links and a
   const privateEntry = await memories.create(alice.user.id, privateInput)
   const mixed = await memories.create(alice.user.id, { ...sharedInput, title: 'Visible note', personIds: [thomas.id, hidden.id] })
   const note = await memories.create(alice.user.id, { ...sharedInput, title: 'Standalone note', personIds: [] })
-  assert.equal(note.people.length, 0)
+  assert.deepEqual(note.people.map(person => person.id), [(await contacts.self(alice.user.id)).id])
   const bobHistory = await memories.list(bob.user.id, historyInput.parse({ personId: thomas.id, groupId: project.id }))
   assert.deepEqual(bobHistory.items.map(entry => entry.id).sort(), [shared.id, mixed.id].sort())
   assert.equal(JSON.stringify(bobHistory).includes(privateEntry.id), false)
@@ -357,7 +359,7 @@ test('MySQL: recursive contacts, independent entry privacy, filtered links and a
   const updated = await memories.update(bob.user.id, mixed.id, { ...sharedInput, title: 'Edited visible note', personIds: [marie.id] })
   assert.equal(updated.creatorId, alice.user.id)
   assert.deepEqual(updated.people.map(person => person.id), [marie.id])
-  assert.deepEqual((await memories.get(alice.user.id, mixed.id)).people.map(person => person.id).sort(), [marie.id, hidden.id].sort())
+  assert.deepEqual((await memories.get(alice.user.id, mixed.id)).people.map(person => person.id).sort(), [marie.id, hidden.id, (await contacts.self(alice.user.id)).id].sort())
   await memories.update(alice.user.id, privateEntry.id, { ...privateInput, groupId: lab.id })
   assert.equal((await memories.get(bob.user.id, privateEntry.id)).id, privateEntry.id)
   await memories.update(alice.user.id, privateEntry.id, privateInput)
@@ -373,7 +375,7 @@ test('MySQL: recursive contacts, independent entry privacy, filtered links and a
   assert.equal((await app.inject({ method: 'POST', url: '/api/entries', headers, cookies, payload: { ...sharedInput, occurredAt: '0999-01-01T00:00:00Z' } })).statusCode, 400)
 
   await db.delete(entries).where(eq(entries.creatorId, alice.user.id))
-  await db.delete(people).where(eq(people.creatorId, alice.user.id))
+  await db.delete(people).where(inArray(people.creatorId, [alice.user.id, bob.user.id]))
   for (const id of [finance.id, lab.id, project.id, privateChild.id, vault.id, bobVault.id]) await db.delete(groups).where(eq(groups.id, id))
   await db.delete(users).where(inArray(users.id, [alice.user.id, bob.user.id]))
 })
@@ -444,7 +446,7 @@ test('MySQL: sharing roles, inherited access, last owner and editing all contact
   t.after(() => app.close())
   assert.equal((await app.inject({ url: `/api/groups/${other.id}/members` })).statusCode, 401)
   assert.equal((await app.inject({ method: 'PUT', url: `/api/groups/${other.id}/members`, cookies: { memties_session: alice.token }, headers: { origin: 'http://localhost:5173' }, payload: { email: bob.user.email, role: 'admin' } })).statusCode, 400)
-  await db.delete(people).where(eq(people.creatorId, alice.user.id))
+  await db.delete(people).where(inArray(people.creatorId, [alice.user.id, bob.user.id]))
   for (const id of [child.id, project.id, other.id, privateChild.id, vault.id, bobVault.id]) await db.delete(groups).where(eq(groups.id, id))
   await db.delete(users).where(inArray(users.id, [alice.user.id, bob.user.id]))
 })

@@ -71,6 +71,13 @@
       "when": 1790064368079,
       "tag": "0009_vengeful_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1790065725111,
+      "tag": "0010_mature_guardsmen",
+      "breakpoints": true
     }
   ]
 }

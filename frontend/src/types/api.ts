@@ -13,6 +13,7 @@ export type Group = {
 
 export type Page<T> = { items: T[]; nextOffset: number | null }
 export type Person = {
+  isSelf: boolean
   id: string; displayName: string; firstName: string; lastName: string; nickname: string
   email: string; phone: string; organization: string; jobTitle: string; notes: string
   groupIds: string[]; canEdit: boolean; createdAt: string; updatedAt: string

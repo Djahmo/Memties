@@ -6,7 +6,7 @@ import type { FormEvent } from 'react'
 import { FilePenLine, LockKeyhole, UsersRound } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import { TagPicker } from './TagPicker'
-import type { Entry, Group, Tag } from '../../types/api'
+import type { Entry, Group, Person, Tag } from '../../types/api'
 import { PersonPicker } from '../people/PersonPicker'
 import type { SelectedPerson } from '../people/PersonPicker'
 import { groupLabel, groupRows } from '../groups/groupLabels'
@@ -24,7 +24,10 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
   const [addReminder, setAddReminder] = useState(false)
   const { data: reminderConfig } = useApi<{ mailEnabled: boolean; pushEnabled: boolean }>('/reminders/config')
   const [destination, setDestination] = useState(existing?.groupId ?? groupId)
-  const [selected, setSelected] = useState<SelectedPerson[]>(existing?.people ?? (person ? [person] : []))
+  const { data: self, error: selfError, reload: reloadSelf } = useApi<Person>('/people/self')
+  const [participants, setSelected] = useState<SelectedPerson[]>(existing?.people ?? (person ? [person] : []))
+  const includeSelf = !!self && (!existing || existing.people.some(person => person.id === self.id))
+  const selected = includeSelf && !participants.some(person => person.id === self.id) ? [self, ...participants] : participants
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const target = groups.find(group => group.id === destination)
@@ -49,7 +52,8 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       {moved && <label key={destination} className="flex gap-3 text-sm rounded-lg border border-warningline bg-warning p-3"><input type="checkbox" className="size-4 shrink-0 mt-0.5 accent-[#245b47]" required />{t("I understand that moving this entry changes who can access it.")}</label>}
       <label className="field-label">{t("Content")}<textarea className="input-field resize-y" name="body" defaultValue={existing?.body} rows={7} maxLength={10000} placeholder={t("What would you like to remember?")} /></label>
       <TagPicker selected={tag} onChange={setTag} disabled={busy} />
-      <PersonPicker selected={selected} onChange={setSelected} />
+      <PersonPicker selected={selected} onChange={setSelected} requiredIds={includeSelf ? [self.id] : []} />
+      {!existing && selfError && <p role="alert" className="error">{t(selfError)}<button type="button" className="underline ml-2" onClick={reloadSelf}>{t('Retry')}</button></p>}
       {!existing && <div className="rounded-lg bg-soft p-4 space-y-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={addReminder} onChange={event => setAddReminder(event.target.checked)} />{t('Add reminder')}</label>{addReminder && <>
         <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" maxLength={240} required /></label>
         <ReminderDateFields />
@@ -58,7 +62,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       </>}</div>}
       <p className="muted text-xs">{t("Linked contact profiles keep their own group permissions.")}</p>
       {error && <p role="alert" className="error">{t(error)}</p>}
-      <div className="flex gap-3"><button className="primary" type="submit">{busy ? t("Saving…") : existing ? t("Save entry") : t("Create entry")}</button><button className="secondary" type="button" onClick={onCancel}>{t("Cancel")}</button></div>
+      <div className="flex gap-3"><button className="primary" type="submit" disabled={!existing && !self}>{busy ? t("Saving…") : existing ? t("Save entry") : t("Create entry")}</button><button className="secondary" type="button" onClick={onCancel}>{t("Cancel")}</button></div>
     </fieldset></form>
   </section>
 }

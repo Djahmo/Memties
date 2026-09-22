@@ -9,6 +9,7 @@ import { ServiceError } from './errors.js'
 import type { EntryInput, HistoryInput } from './content-input.js'
 import { assignEntryTag, createTagService } from './tags.js'
 import { searchPattern } from './content-input.js'
+import { selfContactId } from './self-contact.js'
 
 export const createEntryService = (db: ServiceDatabase) => {
   const present = async (userId: string, access: Access, rows: typeof entries.$inferSelect[]) => {
@@ -103,7 +104,7 @@ export const createEntryService = (db: ServiceDatabase) => {
         await validatePeople(current, personIds, tx)
         await tx.insert(entries).values({ id, ...fields, creatorId: userId, source })
         await assignEntryTag(tx, userId, id, tagId)
-        if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
+        await tx.insert(entryPeople).values([...new Set([...personIds, await selfContactId(tx, userId)])].map(personId => ({ entryId: id, personId })))
         if (reminder) await tx.insert(reminders).values({ id: randomUUID(), entryId: id, creatorId: userId, ...reminder, notifyByPush: reminder.notifyByPush ? 'yes' : 'no', notifyByEmail: reminder.notifyByEmail ? 'yes' : 'no' })
       })
       return get(userId, id)
@@ -127,7 +128,8 @@ export const createEntryService = (db: ServiceDatabase) => {
         // Editing a visible entry must not remove or reveal participants inaccessible to this reader.
         await tx.delete(entryPeople).where(and(eq(entryPeople.entryId, id), inArray(entryPeople.personId, visiblePersonIds(tx, current))))
         await assignEntryTag(tx, userId, id, tagId)
-        if (personIds.length) await tx.insert(entryPeople).values([...new Set(personIds)].map(personId => ({ entryId: id, personId })))
+        await tx.insert(entryPeople).values([...new Set([...personIds, await selfContactId(tx, locked.creatorId)])].map(personId => ({ entryId: id, personId })))
+          .onDuplicateKeyUpdate({ set: { entryId: id } })
       })
       return get(userId, id)
     },

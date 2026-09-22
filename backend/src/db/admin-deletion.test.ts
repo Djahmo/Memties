@@ -23,6 +23,7 @@ test('MySQL: deletion removes shared contributions, preserves other users and re
       await db.delete(reminders).where(inArray(reminders.entryId, entryIds))
       await db.delete(entries).where(inArray(entries.id, entryIds))
       await db.delete(people).where(inArray(people.id, personIds))
+      if (accountIds.length) await db.delete(people).where(inArray(people.userId, accountIds))
       if (groupIds.length) {
         await db.update(groups).set({ parentId: null }).where(inArray(groups.id, groupIds))
         await db.delete(groups).where(inArray(groups.id, groupIds))

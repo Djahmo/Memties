@@ -5,6 +5,7 @@ import { groupMembers, groups, identities, sessions, users } from '../db/schema.
 import { ServiceError } from '../services/errors.js'
 import { hashPassword, verifyPassword } from './password.js'
 import { accountRole, administratorEmails } from './admin.js'
+import { createSelfContact } from '../services/self-contact.js'
 
 export type User = Pick<typeof users.$inferSelect, 'id' | 'email' | 'displayName'> & { role?: 'admin' | 'user' }
 export const sessionLifetime = 7 * 24 * 60 * 60
@@ -47,6 +48,7 @@ export const createAuthService = (db: Database, adminEmails = '') => {
         const groupId = randomUUID()
         await tx.insert(groups).values({ id: groupId, name: 'Personal', personalOwnerId: created.id })
         await tx.insert(groupMembers).values({ groupId, userId: created.id, role: 'owner' })
+        await createSelfContact(tx, created, groupId)
         return created
       })
       return createSession(user)
@@ -61,6 +63,7 @@ export const createAuthService = (db: Database, adminEmails = '') => {
           const groupId = randomUUID()
           await tx.insert(groups).values({ id: groupId, name: 'Personal', personalOwnerId: user.id })
           await tx.insert(groupMembers).values({ groupId, userId: user.id, role: 'owner' })
+          await createSelfContact(tx, user, groupId)
         })
       } catch (error) {
         const cause = error instanceof Error && 'cause' in error ? error.cause : error

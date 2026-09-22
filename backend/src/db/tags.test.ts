@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { eq, inArray } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/mysql2/migrator'
 import { connectDatabase } from './index.js'
-import { entries, entryTags, groups, users } from './schema.js'
+import { entries, entryTags, groups, people, users } from './schema.js'
 import { createAuthService } from '../auth/service.js'
 import { createGroupService } from '../services/groups.js'
 import { createSharingService } from '../services/sharing.js'
@@ -28,6 +28,7 @@ test('MySQL: personal tags, foreign ownership, reassignment and JSON round trip'
     try {
       if (userIds.length) {
         await db.delete(entries).where(inArray(entries.creatorId, userIds))
+        await db.delete(people).where(inArray(people.creatorId, userIds))
         for (const userId of userIds) {
           const remaining = (await createGroupService(db).list(userId)).filter(group => !group.isPersonal)
           while (remaining.length) {

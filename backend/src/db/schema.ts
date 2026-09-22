@@ -43,6 +43,7 @@ export const groupMembers = mysqlTable('group_members', {
 
 export const people = mysqlTable('people', {
   id: varchar('id', { length: 36 }).primaryKey(),
+  userId: varchar('user_id', { length: 36 }).unique().references(() => users.id, { onDelete: 'restrict' }),
   firstName: varchar('first_name', { length: 120 }).notNull().default(''),
   lastName: varchar('last_name', { length: 120 }).notNull().default(''),
   displayName: varchar('display_name', { length: 240 }).notNull(),

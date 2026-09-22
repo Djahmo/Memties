@@ -229,6 +229,8 @@ export const fr = {
   'This group and its subgroups will become private. Only you will have access. Existing direct permissions will be inactive while they remain in Personal.': 'Ce groupe et ses sous-groupes deviendront privés, accessibles uniquement à toi. Les accès directs existants seront inactifs tant qu’ils restent dans Personnel.',
   'This group and its subgroups will leave Personal. Access will follow the destination, and any existing direct permissions will become active again.': 'Ce groupe et ses sous-groupes quitteront Personnel. Ils hériteront des accès de la destination et les éventuels accès directs existants seront réactivés.',
   'New group name': 'Nom du nouveau groupe',
+  'You': 'Toi',
+  'Your personal contact is unavailable.': 'Ton contact personnel est indisponible.',
   'Group sharing': 'Partage du groupe',
   'Groups': 'Groupes',
   'Groups give your relationships context.': 'Les groupes donnent un contexte à vos relations.',
