@@ -22,6 +22,8 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
   const { t, i18n } = useTranslation()
   const [tag, setTag] = useState<Tag | null>(existing?.tag ?? null)
   const [addReminder, setAddReminder] = useState(false)
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [reminderTitle, setReminderTitle] = useState<string | null>(null)
   const { data: reminderConfig } = useApi<{ mailEnabled: boolean; pushEnabled: boolean }>('/reminders/config')
   const [destination, setDestination] = useState(existing?.groupId ?? groupId)
   const { data: self, error: selfError, reload: reloadSelf } = useApi<Person>('/people/self')
@@ -34,6 +36,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
   const moved = !!existing && existing.groupId !== destination
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (busy || (!existing && !self)) return
     const form = new FormData(event.currentTarget)
     setError(''); setBusy(true)
     try {
@@ -45,8 +48,12 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
   }
   return <section className="card max-w-3xl"><h2 className="text-xl font-semibold flex items-center gap-2"><FilePenLine size={22} aria-hidden="true" />{existing ? t("Edit entry") : t("New entry")}</h2><p className="muted text-sm mt-2 mb-6">{t("Capture a conversation, meeting, or a note to yourself.")}</p>
-    <form onSubmit={submit}><fieldset disabled={busy} className="space-y-5">
-      <label className="field-label">{t("Title")}<input className="input-field" autoFocus name="title" defaultValue={existing?.title} maxLength={240} required /></label>
+    <form onSubmit={submit} onKeyDown={event => {
+      if (existing || event.key !== 'Enter' || !event.ctrlKey || event.nativeEvent.isComposing) return
+      event.preventDefault()
+      if (!busy && self && !event.repeat) event.currentTarget.requestSubmit()
+    }}><fieldset disabled={busy} className="space-y-5">
+      <label className="field-label">{t("Title")}<input className="input-field" autoFocus name="title" value={title} onChange={event => setTitle(event.target.value)} maxLength={240} required /></label>
       <div className="grid sm:grid-cols-2 gap-4"><label className="field-label">{t("Date and time")}<input className="input-field" type="datetime-local" name="occurredAt" defaultValue={localDateTime(existing ? new Date(existing.occurredAt) : new Date())} required /></label><label className="field-label">{t("Group")}<select aria-label={t("Group")} className="input-field" value={destination} required onChange={event => setDestination(event.target.value)}>{groupRows(groups).filter(({ group }) => group.role !== 'viewer').map(({ group }) => <option key={group.id} value={group.id}>{groupLabel(groups, group.id)}</option>)}</select></label></div>
       <p className="rounded-lg bg-soft text-sm p-3 flex items-start gap-2">{target?.isPrivate ? <LockKeyhole size={17} className="shrink-0 mt-0.5" aria-hidden="true" /> : <UsersRound size={17} className="shrink-0 mt-0.5" aria-hidden="true" />}{target?.isPrivate ? t("Only you can see this entry. Your Personal vault and its subgroups stay private.") : t('This entry is visible to everyone with access to {{name}}.', { name: target?.name ?? t('Group') })}</p>
       {moved && <label key={destination} className="flex gap-3 text-sm rounded-lg border border-warningline bg-warning p-3"><input type="checkbox" className="size-4 shrink-0 mt-0.5 accent-[#245b47]" required />{t("I understand that moving this entry changes who can access it.")}</label>}
@@ -55,13 +62,14 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       <PersonPicker selected={selected} onChange={setSelected} requiredIds={includeSelf ? [self.id] : []} />
       {!existing && selfError && <p role="alert" className="error">{t(selfError)}<button type="button" className="underline ml-2" onClick={reloadSelf}>{t('Retry')}</button></p>}
       {!existing && <div className="rounded-lg bg-soft p-4 space-y-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={addReminder} onChange={event => setAddReminder(event.target.checked)} />{t('Add reminder')}</label>{addReminder && <>
-        <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" maxLength={240} required /></label>
+        <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" value={reminderTitle ?? t('Reminder: {{title}}', { title: title.trim() }).slice(0, 240)} onChange={event => setReminderTitle(event.target.value)} maxLength={240} required /></label>
         <ReminderDateFields />
         {reminderConfig?.pushEnabled && <><label className="flex gap-2 items-center text-sm"><input type="checkbox" name="reminderPush" />{t('Push me when due')}</label><p className="muted text-xs">{t('Enable notifications on your devices in App settings.')}</p></>}
         {reminderConfig?.mailEnabled && <label className="flex gap-2 items-center text-sm"><input type="checkbox" name="reminderEmail" />{t('Email me when due')}</label>}
       </>}</div>}
       <p className="muted text-xs">{t("Linked contact profiles keep their own group permissions.")}</p>
       {error && <p role="alert" className="error">{t(error)}</p>}
+      {!existing && <p className="muted text-xs">{t('Ctrl+Enter to create the entry.')}</p>}
       <div className="flex gap-3"><button className="primary" type="submit" disabled={!existing && !self}>{busy ? t("Saving…") : existing ? t("Save entry") : t("Create entry")}</button><button className="secondary" type="button" onClick={onCancel}>{t("Cancel")}</button></div>
     </fieldset></form>
   </section>

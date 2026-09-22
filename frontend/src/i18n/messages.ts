@@ -1,4 +1,10 @@
 export const fr = {
+  'Reminder: {{title}}': 'Rappel : {{title}}',
+  'Ctrl+Enter to create the entry.': 'Ctrl+Entrée pour créer l’entrée.',
+  'Role for {{name}}': 'Rôle de {{name}}',
+  'Permissions': 'Droits',
+  'Permission changes are saved immediately.': 'Les modifications des droits sont enregistrées immédiatement.',
+  'Manage permissions': 'Gérer les droits',
   'Delete': 'Supprimer',
   'Choose contact file': 'Choisir un fichier de contacts',
   'Authorize a connection to Memties': 'Autoriser une connexion à Memties',

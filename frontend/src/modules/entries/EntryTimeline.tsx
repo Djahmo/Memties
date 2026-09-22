@@ -87,7 +87,11 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
     {error && <p role="alert" className="error">{t(error)}<button className="underline ml-2" onClick={reload}>{t("Retry")}</button></p>}
     {data && <>{data.items.length ? <div className="space-y-4">{data.items.map(entry => <article key={entry.id} className="card relative">
       {entry.tag && <span className="absolute left-0 top-3 bottom-3 w-1 rounded-full" style={{ backgroundColor: entry.tag.color }} aria-hidden="true" />}
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center flex-wrap gap-2 text-xs muted mb-3"><CalendarDays size={14} aria-hidden="true" /><time dateTime={entry.occurredAt}>{new Date(entry.occurredAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}</time><span>· {entry.creatorName}</span></div><h3 className="text-lg font-semibold break-words">{entry.title}</h3></div>{entry.canEdit && <button className="secondary shrink-0 p-2" aria-label={t('Edit {{title}}', { title: entry.title })} onClick={() => onEdit(entry)}><Pencil size={16} aria-hidden="true" /></button>}</div>
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center flex-wrap gap-2 text-xs muted mb-3"><CalendarDays size={14} aria-hidden="true" /><time dateTime={entry.occurredAt}>{new Date(entry.occurredAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}</time><span>· {entry.creatorName}</span></div><h3 className="text-lg font-semibold break-words">{entry.title}</h3></div>{entry.canEdit && <div className="flex shrink-0 gap-1">
+        <button type="button" className="secondary size-11 p-2" disabled={busy || deletingId === entry.id} aria-label={t(entry.archivedAt ? 'Restore entry' : 'Archive entry')} title={t(entry.archivedAt ? 'Restore entry' : 'Archive entry')} onClick={() => { void toggleArchive(entry) }}>{entry.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}</button>
+        <button type="button" className="secondary size-11 p-2" disabled={busy} aria-label={t('Edit {{title}}', { title: entry.title })} title={t('Edit entry')} onClick={() => onEdit(entry)}><Pencil size={16} aria-hidden="true" /></button>
+        <button type="button" className="secondary size-11 p-2 text-errorink" disabled={busy} aria-label={t('Delete {{name}}', { name: entry.title })} title={t('Delete entry')} aria-expanded={deletingId === entry.id} onClick={() => { setDeletingId(entry.id); setDeleteError('') }}><Trash2 size={16} aria-hidden="true" /></button>
+      </div>}</div>
       <p className="badge mt-3 inline-flex gap-1 items-center max-w-full break-words">{groups.find(group => group.id === entry.groupId)?.isPrivate && <LockKeyhole size={12} className="shrink-0" aria-hidden="true" />}{groupLabel(groups, entry.groupId)}</p>
       <div className="mt-3">
         <button type="button" className="inline-flex items-center gap-2 min-h-11 max-w-full rounded-lg border border-line px-3 py-2 text-sm hover:bg-hover" aria-expanded={tagEntryId === entry.id} onClick={() => setTagEntryId(tagEntryId === entry.id ? null : entry.id)}>
@@ -97,18 +101,15 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
       </div>
       <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
       {!!entry.people.length && <div className="mt-4 flex flex-wrap gap-2">{entry.people.map(person => <button key={person.id} className="text-xs border border-line rounded-full px-3 py-1 hover:(bg-soft border-strongline)" onClick={() => onPerson(person.id)}>{person.displayName}</button>)}</div>}
-      <EntryReminders entryId={entry.id} canCreate={entry.canEdit} />
-      {entry.canEdit && <div className="mt-4 border-t border-line pt-4">
-        {deletingId === entry.id ? <fieldset disabled={busy} className="space-y-3">
+      <EntryReminders entryId={entry.id} entryTitle={entry.title} canCreate={entry.canEdit} />
+      {entry.canEdit && deletingId === entry.id && <div className="mt-4 border-t border-line pt-4">
+        <fieldset disabled={busy} className="space-y-3">
           <p className="text-sm">{t('Permanently delete {{name}}?', { name: entry.title })}</p>
           <p className="muted text-sm">{t('This entry and all its reminders will be permanently deleted. Linked contacts will be kept.')}</p>
           <div className="flex flex-wrap gap-3"><button type="button" className="secondary text-errorink" onClick={() => { void remove(entry.id) }}><Trash2 size={16} aria-hidden="true" />{t('Confirm deletion')}</button><button type="button" className="secondary" onClick={() => { setDeletingId(null); setDeleteError('') }}>{t('Cancel')}</button></div>
           {busy && <p role="status" className="muted text-sm">{t('Deleting…')}</p>}
           {deleteError && <p role="alert" className="error">{t(deleteError)}</p>}
-        </fieldset> : <div className="flex flex-wrap gap-3">
-          <button type="button" className="secondary" disabled={busy} onClick={() => { void toggleArchive(entry) }}>{entry.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}{t(entry.archivedAt ? 'Restore entry' : 'Archive entry')}</button>
-          <button type="button" className="secondary text-errorink" disabled={busy} aria-label={t('Delete {{name}}', { name: entry.title })} onClick={() => { setDeletingId(entry.id); setDeleteError('') }}><Trash2 size={16} aria-hidden="true" />{t('Delete entry')}</button>
-        </div>}
+        </fieldset>
       </div>}
     </article>)}</div> : <div className="border border-dashed border-strongline rounded-xl text-center p-10"><FileText size={32} className="mx-auto text-icon" aria-hidden="true" /><h3 className="font-semibold mt-4">{t("No entries in this view")}</h3><p className="muted text-sm mt-2">{t("Add your first memory, or adjust the filters.")}</p></div>}<Pagination offset={offset} nextOffset={data.nextOffset} onChange={setOffset} /></>}
   </section>

@@ -13,7 +13,7 @@ type Reminder = {
   canEdit: boolean; canNotify: boolean; notifyByPush: boolean; notifyByEmail: boolean
 }
 
-export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: { groupId?: string; personId?: string; entryId?: string; canCreate?: boolean }) => {
+export const ReminderList = ({ groupId, personId, entryId, entryTitle, canCreate = false }: { groupId?: string; personId?: string; entryId?: string; entryTitle?: string; canCreate?: boolean }) => {
   const { t, i18n } = useTranslation()
   const [status, setStatus] = useState('pending')
   const [now, setNow] = useState(() => Date.now())
@@ -63,7 +63,7 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
       </div>
     </div>
     {editing && <form key={current?.id ?? 'new'} onSubmit={submit} className="rounded-lg bg-soft p-4"><fieldset disabled={busy} className="space-y-3">
-      <label className="field-label">{t('Reminder title')}<input className="input-field" autoFocus name="title" maxLength={240} required defaultValue={current?.title} /></label>
+      <label className="field-label">{t('Reminder title')}<input className="input-field" autoFocus name="title" maxLength={240} required defaultValue={current?.title ?? (entryTitle ? t('Reminder: {{title}}', { title: entryTitle }).slice(0, 240) : '')} /></label>
       <ReminderDateFields dueAt={current?.dueAt} />
       {(editing === 'new' || current?.canNotify) && config?.mailEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="notify" className="mt-1" defaultChecked={current?.notifyByEmail} />{t('Email me when due')}</label>}
       {(editing === 'new' || current?.canNotify) && config?.pushEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="push" className="mt-1" defaultChecked={current?.notifyByPush} />{t('Push me when due')}</label>}
@@ -80,11 +80,11 @@ export const ReminderList = ({ groupId, personId, entryId, canCreate = false }: 
   </section>
 }
 
-export const EntryReminders = ({ entryId, canCreate }: { entryId: string; canCreate: boolean }) => {
+export const EntryReminders = ({ entryId, entryTitle, canCreate }: { entryId: string; entryTitle: string; canCreate: boolean }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return <details className="mt-4 border-t border-line pt-3" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary className="text-sm text-accent cursor-pointer">{t('Reminders')}</summary>
-    {open && <div className="mt-3"><ReminderList entryId={entryId} canCreate={canCreate} /></div>}
+    {open && <div className="mt-3"><ReminderList entryId={entryId} entryTitle={entryTitle} canCreate={canCreate} /></div>}
   </details>
 }
