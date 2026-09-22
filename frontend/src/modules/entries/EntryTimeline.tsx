@@ -97,7 +97,6 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
       </div>
       <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
       {!!entry.people.length && <div className="mt-4 flex flex-wrap gap-2">{entry.people.map(person => <button key={person.id} className="text-xs border border-line rounded-full px-3 py-1 hover:(bg-soft border-strongline)" onClick={() => onPerson(person.id)}>{person.displayName}</button>)}</div>}
-      {entry.canEdit && <button className="secondary mt-4 text-sm" disabled={busy} onClick={() => { void toggleArchive(entry) }}>{entry.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}{t(entry.archivedAt ? 'Restore entry' : 'Archive entry')}</button>}
       <EntryReminders entryId={entry.id} canCreate={entry.canEdit} />
       {entry.canEdit && <div className="mt-4 border-t border-line pt-4">
         {deletingId === entry.id ? <fieldset disabled={busy} className="space-y-3">
@@ -106,7 +105,10 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
           <div className="flex flex-wrap gap-3"><button type="button" className="secondary text-errorink" onClick={() => { void remove(entry.id) }}><Trash2 size={16} aria-hidden="true" />{t('Confirm deletion')}</button><button type="button" className="secondary" onClick={() => { setDeletingId(null); setDeleteError('') }}>{t('Cancel')}</button></div>
           {busy && <p role="status" className="muted text-sm">{t('Deleting…')}</p>}
           {deleteError && <p role="alert" className="error">{t(deleteError)}</p>}
-        </fieldset> : <button type="button" className="secondary text-errorink" disabled={busy} aria-label={t('Delete {{name}}', { name: entry.title })} onClick={() => { setDeletingId(entry.id); setDeleteError('') }}><Trash2 size={16} aria-hidden="true" />{t('Delete entry')}</button>}
+        </fieldset> : <div className="flex flex-wrap gap-3">
+          <button type="button" className="secondary" disabled={busy} onClick={() => { void toggleArchive(entry) }}>{entry.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}{t(entry.archivedAt ? 'Restore entry' : 'Archive entry')}</button>
+          <button type="button" className="secondary text-errorink" disabled={busy} aria-label={t('Delete {{name}}', { name: entry.title })} onClick={() => { setDeletingId(entry.id); setDeleteError('') }}><Trash2 size={16} aria-hidden="true" />{t('Delete entry')}</button>
+        </div>}
       </div>}
     </article>)}</div> : <div className="border border-dashed border-strongline rounded-xl text-center p-10"><FileText size={32} className="mx-auto text-icon" aria-hidden="true" /><h3 className="font-semibold mt-4">{t("No entries in this view")}</h3><p className="muted text-sm mt-2">{t("Add your first memory, or adjust the filters.")}</p></div>}<Pagination offset={offset} nextOffset={data.nextOffset} onChange={setOffset} /></>}
   </section>
