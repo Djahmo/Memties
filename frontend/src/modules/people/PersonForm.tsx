@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { LockKeyhole, UserPlus } from 'lucide-react'
+import { CalendarDays, LockKeyhole, Plus, Trash2, UserPlus } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import type { Group, Person } from '../../types/api'
-import { includeParentGroups, toggleGroupSelection } from '../groups/groupSelection'
+import { toggleGroupSelection } from '../groups/groupSelection'
 import { groupLabel, groupRows } from '../groups/groupLabels'
 
 const fields = [
@@ -15,12 +15,13 @@ const fields = [
 
 export const PersonForm = ({ groups, groupId, existing, onSaved, onCancel }: { groups: Group[]; groupId: string; existing?: Person; onSaved: (person: Person) => void; onCancel: () => void }) => {
   const { t } = useTranslation()
-  const [selected, setSelected] = useState(() => includeParentGroups(groups, existing?.groupIds ?? (groups.find(group => group.id === groupId)?.isPersonal ? [] : [groupId])))
+  const [selected, setSelected] = useState(() => existing?.groupIds ?? (groups.find(group => group.id === groupId)?.isPersonal ? [] : [groupId]))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [firstName, setFirstName] = useState(existing?.firstName ?? '')
   const [lastName, setLastName] = useState(existing?.lastName ?? '')
   const [customName, setCustomName] = useState(!!existing && existing.displayName !== [existing.firstName, existing.lastName].filter(Boolean).join(' '))
+  const [importantDates, setImportantDates] = useState<Person['importantDates']>(existing?.importantDates ?? [])
   const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ')
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -32,6 +33,7 @@ export const PersonForm = ({ groups, groupId, existing, onSaved, onCancel }: { g
       onSaved(await api<Person>(existing ? `/people/${existing.id}` : '/people', { method: existing ? 'PATCH' : 'POST', body: {
         displayName: customName ? String(form.get('displayName')).trim() : fullName,
         firstName: firstName.trim(), lastName: lastName.trim(), notes: String(form.get('notes')).trim(), groupIds: selected,
+        importantDates: importantDates.map(date => ({ label: date.label.trim(), date: date.date, annualReminder: date.annualReminder })),
         ...Object.fromEntries(fields.map(field => [field.name, String(form.get(field.name)).trim()])),
       } }))
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
@@ -48,6 +50,16 @@ export const PersonForm = ({ groups, groupId, existing, onSaved, onCancel }: { g
       <details className="border border-line rounded-lg p-4"><summary className="cursor-pointer font-medium text-sm py-1">{t('Additional contact details')}</summary><div className="grid sm:grid-cols-2 gap-4 mt-4">{fields.filter(field => field.name !== 'email' && field.name !== 'phone').map(field => <label key={field.name} className="field-label">{t(field.label)}<input className="input-field" name={field.name} defaultValue={existing?.[field.name]} maxLength={field.max} /></label>)}</div>
       <label className="field-label">{t("General notes")}<textarea className="input-field resize-y" name="notes" defaultValue={existing?.notes} rows={3} maxLength={10000} /><span className="muted text-xs font-normal">{t("These notes are part of the contact profile and visible wherever this contact is shared. Use a Personal entry for private notes.")}</span></label>
       </details>
+      <section className="space-y-3" aria-label={t('Important dates')}>
+        <h3 className="field-label flex items-center gap-2"><CalendarDays size={17} aria-hidden="true" />{t('Important dates')}</h3>
+        {importantDates.map(date => <div key={date.id} className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 rounded-lg border border-line p-3">
+          <label className="field-label">{t('Occasion')}<input className="input-field" value={date.label} maxLength={120} required placeholder={t('Birthday')} onChange={event => setImportantDates(current => current.map(item => item.id === date.id ? { ...item, label: event.target.value } : item))} /></label>
+          <label className="field-label">{t('Date')}<input className="input-field" type="date" value={date.date} min="1000-01-01" max="9999-12-31" required onChange={event => setImportantDates(current => current.map(item => item.id === date.id ? { ...item, date: event.target.value } : item))} /></label>
+          <button className="secondary self-end" type="button" aria-label={t('Remove important date')} onClick={() => setImportantDates(current => current.filter(item => item.id !== date.id))}><Trash2 size={16} aria-hidden="true" /></button>
+          <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={date.annualReminder} onChange={event => setImportantDates(current => current.map(item => item.id === date.id ? { ...item, annualReminder: event.target.checked } : item))} />{t('Show an annual reminder in the group')}</label>
+        </div>)}
+        <button type="button" className="secondary" onClick={() => setImportantDates(current => [...current, { id: crypto.randomUUID(), label: '', date: '', annualReminder: false }])}><Plus size={16} aria-hidden="true" />{t('Add important date')}</button>
+      </section>
       <fieldset className="space-y-2 min-w-0">
         <legend className="field-label mb-2">{t('Groups')}</legend>
         <div className="max-h-72 overflow-auto space-y-1">

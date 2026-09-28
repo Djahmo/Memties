@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, desc, eq, exists, inArray, or, sql } from 'drizzle-orm'
 import type { Database, ServiceDatabase } from '../db/index.js'
-import { groups, people, personGroups } from '../db/schema.js'
+import { groups, people, personDates, personGroups } from '../db/schema.js'
 import { selfContactId } from './self-contact.js'
 import { groupScope, loadAccess, lockAccess, requireGroup } from './access.js'
 import type { Access } from './access.js'
 import { ServiceError } from './errors.js'
 import type { ListInput, PersonInput } from './content-input.js'
 import { searchPattern } from './content-input.js'
+import { nextAnnualDate } from './annual-dates.js'
 
 export const personVisibility = (db: Pick<Database, 'select'>, groupIds: string[]) => groupIds.length
   ? exists(db.select({ id: personGroups.personId }).from(personGroups).where(and(eq(personGroups.personId, people.id), inArray(personGroups.groupId, groupIds))))
@@ -25,12 +26,14 @@ export const createPeopleService = (db: ServiceDatabase) => {
   const present = async (userId: string, access: Access, rows: typeof people.$inferSelect[]) => {
     if (!rows.length) return []
     const links = await db.select().from(personGroups).where(inArray(personGroups.personId, rows.map(person => person.id)))
+    const dates = await db.select().from(personDates).where(inArray(personDates.personId, rows.map(person => person.id))).orderBy(asc(personDates.date), asc(personDates.id))
     return rows.map(person => {
       const groupIds = links.filter(link => link.personId === person.id).map(link => link.groupId)
       return {
         id: person.id, isSelf: person.userId === userId, displayName: person.displayName, firstName: person.firstName, lastName: person.lastName,
         nickname: person.nickname, email: person.email, phone: person.phone, organization: person.organization,
         jobTitle: person.jobTitle, notes: person.notes, createdAt: person.createdAt, updatedAt: person.updatedAt,
+        importantDates: dates.filter(date => date.personId === person.id).map(date => ({ id: date.id, label: date.label, date: date.date, annualReminder: date.annualReminder === 'yes' })),
         groupIds: groupIds.filter(id => access.permissions.has(id)),
         canEdit: (!person.userId || person.userId === userId) && groupIds.length > 0 && groupIds.every(id => access.permissions.has(id) && access.permissions.get(id)?.role !== 'viewer'),
       }
@@ -43,47 +46,75 @@ export const createPeopleService = (db: ServiceDatabase) => {
   return {
     get,
     self: async (userId: string) => get(userId, await selfContactId(db, userId)),
-    update: async (userId: string, id: string, input: PersonInput) => {
+    upcomingDates: async (userId: string, groupId?: string) => {
+      const access = await loadAccess(db, userId)
+      const scope = groupScope(access, groupId)
+      if (!scope.length) return []
+      const rows = await db.select({ id: personDates.id, personId: people.id, personName: people.displayName,
+        label: personDates.label, date: personDates.date }).from(personDates)
+        .innerJoin(people, eq(people.id, personDates.personId))
+        .where(and(eq(personDates.annualReminder, 'yes'), personVisibility(db, scope)))
+      return rows.map(row => ({ ...row, nextDate: nextAnnualDate(row.date) }))
+        .sort((first, second) => first.nextDate.localeCompare(second.nextDate) || first.personName.localeCompare(second.personName))
+        .slice(0, 30)
+    },
+    update: async (userId: string, id: string, input: Partial<PersonInput>) => {
       await requirePerson(db, await loadAccess(db, userId), id)
       await db.transaction(async tx => {
         const access = await lockAccess(tx, userId)
         const [person] = await tx.select({ userId: people.userId }).from(people).where(eq(people.id, id)).for('update')
+        if (!person) throw new ServiceError(404, 'Person not found.')
         if (person?.userId && person.userId !== userId) throw new ServiceError(403, 'You cannot edit this contact.')
         const links = await tx.select().from(personGroups).where(eq(personGroups.personId, id))
         if (!links.length || links.some(link => !access.permissions.has(link.groupId) || access.permissions.get(link.groupId)?.role === 'viewer')) {
           throw new ServiceError(403, 'You cannot edit this contact.')
         }
-        const { groupIds, ...fields } = input
-        const retainedGroups = new Set(groupIds)
-        if (person?.userId === userId) {
-          const [personal] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.personalOwnerId, userId))
-          if (personal) retainedGroups.add(personal.id)
+        const { groupIds, importantDates, ...fields } = input
+        if (groupIds) {
+          const retainedGroups = new Set(groupIds)
+          if (person.userId === userId) {
+            const [personal] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.personalOwnerId, userId))
+            if (personal) retainedGroups.add(personal.id)
+          }
+          for (const groupId of groupIds) requireGroup(access, groupId, true)
+          await tx.delete(personGroups).where(eq(personGroups.personId, id))
+          await tx.insert(personGroups).values([...retainedGroups].map(groupId => ({ personId: id, groupId })))
         }
-        for (const groupId of groupIds) requireGroup(access, groupId, true)
         await tx.update(people).set({ ...fields, updatedAt: new Date() }).where(eq(people.id, id))
-        await tx.delete(personGroups).where(eq(personGroups.personId, id))
-        await tx.insert(personGroups).values([...retainedGroups].map(groupId => ({ personId: id, groupId })))
+        if (importantDates) {
+          await tx.delete(personDates).where(eq(personDates.personId, id))
+          if (importantDates.length) await tx.insert(personDates).values(importantDates.map(date => ({
+            id: randomUUID(), personId: id, label: date.label, date: date.date, annualReminder: date.annualReminder ? 'yes' as const : 'no' as const,
+          })))
+        }
       })
       return get(userId, id)
     },
-    list: async (userId: string, input: ListInput) => {
+    list: async (userId: string, input: ListInput & { directOnly?: boolean }) => {
       const access = await loadAccess(db, userId)
       const pattern = searchPattern(input.q)
+      if (input.directOnly && !input.groupId) throw new ServiceError(400, 'Select a group to search direct contacts.')
+      if (input.directOnly && input.groupId) requireGroup(access, input.groupId)
       const rows = await db.select().from(people).where(and(
-        or(eq(people.userId, userId), personVisibility(db, groupScope(access, input.groupId))),
+        input.directOnly && input.groupId
+          ? personVisibility(db, [input.groupId])
+          : or(eq(people.userId, userId), personVisibility(db, groupScope(access, input.groupId))),
         input.q ? or(sql`${people.displayName} like ${pattern} escape '!'`, sql`${people.email} like ${pattern} escape '!'`, sql`${people.organization} like ${pattern} escape '!'`, sql`${people.jobTitle} like ${pattern} escape '!'`, sql`${people.nickname} like ${pattern} escape '!'`) : undefined,
       )).orderBy(desc(eq(people.userId, userId)), asc(people.displayName), asc(people.id)).offset(input.offset).limit(input.limit + 1)
       return { items: await present(userId, access, rows.slice(0, input.limit)), nextOffset: rows.length > input.limit ? input.offset + input.limit : null }
     },
     create: async (userId: string, input: PersonInput) => {
       const access = await loadAccess(db, userId)
-      const { groupIds, ...fields } = input
+      const { groupIds, importantDates, ...fields } = input
       for (const id of groupIds) requireGroup(access, id, true)
       const id = randomUUID()
       await db.transaction(async tx => {
         const current = await lockAccess(tx, userId)
         for (const groupId of groupIds) requireGroup(current, groupId, true)
         await tx.insert(people).values({ id, ...fields, creatorId: userId })
+        if (importantDates?.length) await tx.insert(personDates).values(importantDates.map(date => ({
+          id: randomUUID(), personId: id, label: date.label, date: date.date, annualReminder: date.annualReminder ? 'yes' as const : 'no' as const,
+        })))
         await tx.insert(personGroups).values([...new Set(groupIds)].map(groupId => ({ personId: id, groupId })))
       })
       return get(userId, id)

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Bell, ShieldCheck } from 'lucide-react'
 import { disablePush } from '../reminders/push'
 import { ReminderList } from '../reminders/ReminderList'
+import { AnnualDates } from '../reminders/AnnualDates'
 import { useEffect, useState } from 'react'
 import { ChevronRight, FilePlus2, FileText, LockKeyhole, LogOut, Network, Share2, UserPlus, UsersRound } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
@@ -104,7 +105,7 @@ export const GroupPage = ({ user, onLogout, onAdmin }: { user: User; onLogout: (
               <nav aria-label={t("Group content")} className="grid grid-cols-3 gap-1 border-b border-line mt-6 sm:mt-8 mb-5">{tabs.map(({ id, name, Icon }) => <button key={id} className={`flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-2 px-1 sm:px-3 py-3 text-xs sm:text-sm border-b-2 ${tab === id ? 'border-accent text-accent font-semibold' : 'border-transparent muted hover:text-accent'}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} aria-hidden="true" />{t(name)}</button>)}</nav>
               {tab === 'people' && <>{selected.role !== 'viewer' && <ContactImport key={selected.id} groupId={selected.id} onImported={() => setRevision(value => value + 1)} />}<PeopleList key={`${selected.id}:${revision}`} groupId={selected.id} onSelect={person => setView({ kind: 'person', id: person.id })} /></>}
               {tab === 'entries' && <EntryTimeline key={`${selected.id}:${revision}`} groups={groups} initialGroupId={selected.id} onEdit={editEntry} onPerson={id => setView({ kind: 'person', id })} />}
-              {tab === 'reminders' && <ReminderList key={selected.id} groupId={selected.id} />}
+              {tab === 'reminders' && <div className="space-y-6"><AnnualDates key={`${selected.id}:${revision}`} groupId={selected.id} onPerson={id => setView({ kind: 'person', id })} /><ReminderList key={selected.id} groupId={selected.id} /></div>}
             </>}
         </>}
       </main>

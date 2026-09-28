@@ -38,9 +38,22 @@ export const createMcpServer = (services: McpServices, identity: { userId: strin
     inputSchema: groupInput,
     annotations: write,
   }, async input => run(true, () => services.groups.create(userId, groupInput.parse(input))))
-  server.registerTool('search_people', { description: 'Search visible contacts, optionally within a recursive group scope.', inputSchema: listInput, annotations: read }, async input => run(false, () => services.people.list(userId, listInput.parse(input))))
+  const peopleSearch = listInput.extend({ directOnly: z.boolean().default(false) })
+  server.registerTool('search_people', { description: 'Search visible contacts. With groupId, includes subgroups by default; directOnly=true returns only contacts explicitly linked to that group. Results are paginated.', inputSchema: peopleSearch, annotations: read }, async input => run(false, () => services.people.list(userId, peopleSearch.parse(input))))
   server.registerTool('get_person', { description: 'Read an accessible contact profile. Use search_entries to retrieve their visible history.', inputSchema: z.object({ id: z.uuid() }), annotations: read }, async ({ id }) => run(false, () => services.people.get(userId, id)))
-  server.registerTool('create_person', { description: 'Create a contact in explicit writable groups. Ask the user if sharing intent is ambiguous.', inputSchema: personInput, annotations: write }, async input => run(true, () => services.people.create(userId, personInput.parse(input))))
+  server.registerTool('create_person', { description: 'Create a contact in explicit writable groups, optionally with important dates and annual in-app reminders. Ask the user if sharing intent is ambiguous.', inputSchema: personInput, annotations: write }, async input => run(true, () => services.people.create(userId, personInput.parse(input))))
+  const personChanges = personInput.partial().extend({
+    firstName: personInput.shape.firstName.removeDefault().optional(),
+    lastName: personInput.shape.lastName.removeDefault().optional(),
+    nickname: personInput.shape.nickname.removeDefault().optional(),
+    email: personInput.shape.email.removeDefault().optional(),
+    phone: personInput.shape.phone.removeDefault().optional(),
+    organization: personInput.shape.organization.removeDefault().optional(),
+    jobTitle: personInput.shape.jobTitle.removeDefault().optional(),
+    notes: personInput.shape.notes.removeDefault().optional(),
+  })
+  server.registerTool('update_person', { description: 'Change fields or important dates on an accessible, editable contact. Omitted fields are preserved. Supplying importantDates replaces the full date list; use get_person first to retain existing dates. Requires write access to every group containing the contact.', inputSchema: z.object({ id: z.uuid(), changes: personChanges }).strict(), annotations: write }, async ({ id, changes }) => run(true, () => services.people.update(userId, id, changes)))
+  server.registerTool('list_upcoming_dates', { description: 'List upcoming annual in-app reminders for visible contacts, optionally in a recursive group scope. Dates do not send email or push. Returns up to 30 dates.', inputSchema: z.object({ groupId: z.uuid().optional() }).strict(), annotations: read }, async ({ groupId }) => run(false, () => services.people.upcomingDates(userId, groupId)))
   // Wire schemas use ISO strings; service schemas transform them into Date objects.
   const wireReminder = reminderInput.extend({ dueAt: z.iso.datetime({ offset: true }) })
   const wireEntry = entryInput.extend({ occurredAt: z.iso.datetime({ offset: true }), reminder: wireReminder.omit({ entryId: true }).optional() })

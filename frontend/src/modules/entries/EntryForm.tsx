@@ -1,13 +1,14 @@
 import { ReminderDateFields } from '../reminders/ReminderDateFields'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../../hooks/useApi'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { FilePenLine, LockKeyhole, UsersRound } from 'lucide-react'
+import { FilePenLine, LockKeyhole, UserPlus, UsersRound } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import { TagPicker } from './TagPicker'
 import type { Entry, Group, Person, Tag } from '../../types/api'
 import { PersonPicker } from '../people/PersonPicker'
+import { PersonForm } from '../people/PersonForm'
 import type { SelectedPerson } from '../people/PersonPicker'
 import { groupLabel, groupRows } from '../groups/groupLabels'
 
@@ -32,6 +33,12 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
   const selected = includeSelf && !participants.some(person => person.id === self.id) ? [self, ...participants] : participants
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [creatingContact, setCreatingContact] = useState(false)
+  const [contactRevision, setContactRevision] = useState(0)
+  const contactDialog = useRef<HTMLDialogElement>(null)
+  const closeContact = () => {
+    contactDialog.current?.close()
+  }
   const target = groups.find(group => group.id === destination)
   const moved = !!existing && existing.groupId !== destination
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -47,7 +54,7 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       } }))
     } catch (error) { setError(errorMessage(error)) } finally { setBusy(false) }
   }
-  return <section className="card max-w-3xl"><h2 className="text-xl font-semibold flex items-center gap-2"><FilePenLine size={22} aria-hidden="true" />{existing ? t("Edit entry") : t("New entry")}</h2><p className="muted text-sm mt-2 mb-6">{t("Capture a conversation, meeting, or a note to yourself.")}</p>
+  return <><section className="card max-w-3xl"><h2 className="text-xl font-semibold flex items-center gap-2"><FilePenLine size={22} aria-hidden="true" />{existing ? t("Edit entry") : t("New entry")}</h2><p className="muted text-sm mt-2 mb-6">{t("Capture a conversation, meeting, or a note to yourself.")}</p>
     <form onSubmit={submit} onKeyDown={event => {
       if (existing || event.key !== 'Enter' || !event.ctrlKey || event.nativeEvent.isComposing) return
       event.preventDefault()
@@ -59,7 +66,13 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       {moved && <label key={destination} className="flex gap-3 text-sm rounded-lg border border-warningline bg-warning p-3"><input type="checkbox" className="size-4 shrink-0 mt-0.5 accent-[#245b47]" required />{t("I understand that moving this entry changes who can access it.")}</label>}
       <label className="field-label">{t("Content")}<textarea className="input-field resize-y" name="body" defaultValue={existing?.body} rows={7} maxLength={10000} placeholder={t("What would you like to remember?")} /></label>
       <TagPicker selected={tag} onChange={setTag} disabled={busy} />
-      <PersonPicker selected={selected} onChange={setSelected} requiredIds={includeSelf ? [self.id] : []} />
+      <div className="space-y-3">
+        <PersonPicker key={contactRevision} selected={selected} onChange={setSelected} requiredIds={includeSelf ? [self.id] : []} />
+        <button type="button" className="secondary" onClick={() => {
+          setCreatingContact(true)
+          contactDialog.current?.showModal()
+        }}><UserPlus size={17} aria-hidden="true" />{t('New contact')}</button>
+      </div>
       {!existing && selfError && <p role="alert" className="error">{t(selfError)}<button type="button" className="underline ml-2" onClick={reloadSelf}>{t('Retry')}</button></p>}
       {!existing && <div className="rounded-lg bg-soft p-4 space-y-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={addReminder} onChange={event => setAddReminder(event.target.checked)} />{t('Add reminder')}</label>{addReminder && <>
         <label className="field-label">{t('Reminder title')}<input className="input-field" name="reminderTitle" value={reminderTitle ?? t('Reminder: {{title}}', { title: title.trim() }).slice(0, 240)} onChange={event => setReminderTitle(event.target.value)} maxLength={240} required /></label>
@@ -73,4 +86,14 @@ export const EntryForm = ({ groups, groupId, person, existing, onSaved, onCancel
       <div className="flex gap-3"><button className="primary" type="submit" disabled={!existing && !self}>{busy ? t("Saving…") : existing ? t("Save entry") : t("Create entry")}</button><button className="secondary" type="button" onClick={onCancel}>{t("Cancel")}</button></div>
     </fieldset></form>
   </section>
+    <dialog ref={contactDialog} aria-label={t('New contact')} className="m-auto w-[94vw] max-w-3xl max-h-[90dvh] overflow-y-auto rounded-xl border-0 bg-surface text-ink p-0 backdrop:bg-black/50" onClose={() => setCreatingContact(false)} onCancel={event => {
+      if (contactDialog.current?.querySelector('fieldset')?.disabled) event.preventDefault()
+    }}>
+      {creatingContact && <PersonForm groups={groups} groupId={destination} onSaved={contact => {
+        setSelected(current => [...current, { id: contact.id, displayName: contact.displayName }])
+        setContactRevision(current => current + 1)
+        closeContact()
+      }} onCancel={closeContact} />}
+    </dialog>
+  </>
 }

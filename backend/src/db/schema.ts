@@ -63,6 +63,14 @@ export const personGroups = mysqlTable('person_groups', {
   groupId: varchar('group_id', { length: 36 }).notNull().references(() => groups.id, { onDelete: 'restrict' }),
 }, table => [primaryKey({ columns: [table.personId, table.groupId] }), index('person_group_scope').on(table.groupId, table.personId)])
 
+export const personDates = mysqlTable('person_dates', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  personId: varchar('person_id', { length: 36 }).notNull().references(() => people.id, { onDelete: 'cascade' }),
+  label: varchar('label', { length: 120 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(),
+  annualReminder: mysqlEnum('annual_reminder', ['yes', 'no']).notNull().default('no'),
+}, table => [index('person_date_owner').on(table.personId)])
+
 export const entries = mysqlTable('entries', {
   id: varchar('id', { length: 36 }).primaryKey(),
   title: varchar('title', { length: 240 }).notNull(),

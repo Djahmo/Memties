@@ -18,11 +18,21 @@ export const reminderListInput = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 }).strict()
 
+const importantDate = z.object({
+  label: z.string().trim().min(1).max(120),
+  date: z.iso.date().refine(value => {
+    const parsed = new Date(`${value}T00:00:00Z`)
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+  }, 'Invalid important date'),
+  annualReminder: z.boolean(),
+}).strict()
+
 export const personInput = z.object({
   displayName: z.string().trim().min(1).max(240),
   firstName: shortText(120), lastName: shortText(120), nickname: shortText(120),
   email: z.union([z.email().max(254), z.literal('')]).default(''),
   phone: shortText(80), organization: shortText(240), jobTitle: shortText(240), notes: shortText(10000),
+  importantDates: z.array(importantDate).max(30).optional(),
   groupIds: ids.min(1),
 }).strict()
 

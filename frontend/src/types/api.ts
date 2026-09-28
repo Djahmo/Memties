@@ -16,6 +16,7 @@ export type Person = {
   isSelf: boolean
   id: string; displayName: string; firstName: string; lastName: string; nickname: string
   email: string; phone: string; organization: string; jobTitle: string; notes: string
+  importantDates: { id: string; label: string; date: string; annualReminder: boolean }[]
   groupIds: string[]; canEdit: boolean; createdAt: string; updatedAt: string
 }
 

@@ -83,7 +83,7 @@ export const createTransferService = (db: ServiceDatabase) => {
     const reminders = await collect(offset => createReminderService(db).list(userId, reminderListInput.parse({ offset, limit: 100, status: 'all' })))
     return transferInput.parse({ format: 'memties', version: 1, exportedAt: new Date().toISOString(),
       groups: groups.map(({ id, name, description, parentId, color, position }) => ({ id, name, description, parentId, color, position })),
-      people: people.map(({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds }) => ({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds })),
+      people: people.map(({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds, importantDates }) => ({ id, displayName, firstName, lastName, nickname, email, phone, organization, jobTitle, notes, groupIds, importantDates: importantDates.map(({ label, date, annualReminder }) => ({ label, date, annualReminder })) })),
       entries: entries.map(({ id, title, body, occurredAt, groupId, people, source, archivedAt, tag }) => ({ id, title, body, occurredAt: occurredAt.toISOString(), groupId, personIds: people.map(person => person.id), tagId: tag?.id ?? null, source, archivedAt: archivedAt?.toISOString() ?? null })),
       reminders: reminders.map(({ id, title, dueAt, entryId, status }) => ({ id, title, dueAt: dueAt.toISOString(), entryId, status })), tags: (await createTagService(db).list(userId)).map(tag => ({ ...tag, groupIds: [], personIds: [] })),
     })
