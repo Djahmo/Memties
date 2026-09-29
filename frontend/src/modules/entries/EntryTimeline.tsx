@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { TagPicker } from './TagPicker'
 import { EntryReminders } from '../reminders/ReminderList'
 import { useState } from 'react'
-import { Archive, ArchiveRestore, CalendarDays, FileText, Filter, LockKeyhole, Pencil, Search, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, CalendarDays, FileText, Filter, LockKeyhole, MessageSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 import { api, errorMessage } from '../../services/api'
 import { useApi } from '../../hooks/useApi'
 import type { Entry, Group, Page } from '../../types/api'
@@ -15,6 +15,7 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
   const { t, i18n } = useTranslation()
   const [groupId, setGroupId] = useState(initialGroupId)
   const [tagEntryId, setTagEntryId] = useState<string | null>(null)
+  const [expandedComments, setExpandedComments] = useState<string[]>([])
   const [archive, setArchive] = useState('active')
   const [archiveError, setArchiveError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -99,7 +100,21 @@ export const EntryTimeline = ({ groups, initialGroupId, personId, onEdit, onPers
         </button>
         {tagEntryId === entry.id && <div className="mt-3 border border-line rounded-lg p-4"><TagPicker selected={entry.tag} disabled={busy} onChange={tag => { void setTag(entry.id, tag?.id ?? null) }} /></div>}
       </div>
-      <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
+      {entry.body.trim() && <div className="mt-3">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-accent hover:bg-hover"
+          aria-expanded={expandedComments.includes(entry.id)}
+          aria-controls={`entry-comment-${entry.id}`}
+          onClick={() => setExpandedComments(current => current.includes(entry.id)
+            ? current.filter(id => id !== entry.id)
+            : [...current, entry.id])}
+        >
+          <MessageSquare size={14} aria-hidden="true" />
+          {t(expandedComments.includes(entry.id) ? 'Hide comment' : 'Show comment')}
+        </button>
+        <p id={`entry-comment-${entry.id}`} hidden={!expandedComments.includes(entry.id)} className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{entry.body}</p>
+      </div>}
       {!!entry.people.length && <div className="mt-4 flex flex-wrap gap-2">{entry.people.map(person => <button key={person.id} className="text-xs border border-line rounded-full px-3 py-1 hover:(bg-soft border-strongline)" onClick={() => onPerson(person.id)}>{person.displayName}</button>)}</div>}
       <EntryReminders entryId={entry.id} entryTitle={entry.title} canCreate={entry.canEdit} />
       {entry.canEdit && deletingId === entry.id && <div className="mt-4 border-t border-line pt-4">

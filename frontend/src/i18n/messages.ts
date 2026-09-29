@@ -1,4 +1,6 @@
 export const fr = {
+  'Show comment': 'Afficher le commentaire',
+  'Hide comment': 'Masquer le commentaire',
   'Select a group to search direct contacts.': 'Sélectionnez un groupe pour rechercher ses contacts directs.',
   'Only contacts directly in this group': 'Contacts de ce groupe uniquement',
   'Add a contact directly to this group.': 'Ajoutez un contact directement à ce groupe.',
